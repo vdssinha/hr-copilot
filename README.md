@@ -18,6 +18,10 @@ Natural language interface over three AI capabilities:
 
 All features are gated by JWT auth and role-based access control (EMPLOYEE / MANAGER / ADMIN).
 
+Policy RAG now enforces **document-level RBAC** — categories are filtered at the vector store query level so restricted policy chunks are never returned to unauthorised roles.
+
+An **Admin Portal** (`/admin`) lets ADMIN users manage users, upload policy documents, and configure which roles can access which policy categories — all without code changes.
+
 ---
 
 ## Tech Stack
@@ -66,7 +70,9 @@ cp .env.local.example .env.local
 npm run dev                     # starts on http://localhost:3000
 ```
 
-Navigate to `http://localhost:3000/ai-copilot` and log in with a seeded account:
+Navigate to `http://localhost:3000/ai-copilot` for the copilot, or `http://localhost:3000/admin` for the admin portal.
+
+Log in with a seeded account:
 
 | Email | Password | Role |
 |-------|----------|------|
@@ -110,12 +116,28 @@ VOYAGE_API_KEY=pa-...
 All endpoints require `Authorization: Bearer <jwt>`.
 
 ```
-POST /api/v1/auth/login          login → JWT
-POST /api/v1/chat/policy         Policy RAG
-POST /api/v1/chat/sql            SQL Agent
-POST /api/v1/chat/actions        HR Action Agent
-POST /api/v1/chat/router         Unified router (auto-classify)
-POST /api/v1/chat/policy/ingest  Re-index policies (admin only)
+POST /api/v1/auth/login                      login → JWT
+POST /api/v1/chat/policy                     Policy RAG (role-filtered)
+POST /api/v1/chat/sql                        SQL Agent
+POST /api/v1/chat/actions                    HR Action Agent
+POST /api/v1/chat/router                     Unified router (auto-classify)
+POST /api/v1/chat/policy/ingest              Re-index policies (admin only)
+
+# Admin (ADMIN role only)
+GET  /api/v1/admin/users                     List employees
+POST /api/v1/admin/users                     Create employee
+PATCH /api/v1/admin/users/{id}               Update employee
+DELETE /api/v1/admin/users/{id}              Delete employee
+
+GET  /api/v1/admin/roles                     List roles + category access
+PATCH /api/v1/admin/roles/{name}             Update role's accessible categories
+
+GET  /api/v1/admin/categories                List categories + role access
+PATCH /api/v1/admin/categories/{name}        Update category's accessible roles
+
+GET  /api/v1/admin/policies                  List policies
+POST /api/v1/admin/policies/upload           Upload + ingest policy file
+DELETE /api/v1/admin/policies/{id}           Deactivate policy
 ```
 
 Full request/response contracts: [docs/ai_architecture.md](docs/ai_architecture.md)
@@ -153,7 +175,7 @@ hrCopilot/
 │   │   ├── api/v1/endpoints/        FastAPI routers
 │   │   ├── core/                    Config, JWT, dependencies
 │   │   ├── db/                      Session, base
-│   │   ├── models/                  SQLAlchemy models (11 tables + audit log)
+│   │   ├── models/                  SQLAlchemy models (12 tables incl. role_category_access)
 │   │   ├── schemas/                 Pydantic schemas
 │   │   └── services/ai/
 │   │       ├── interfaces/          Abstract base classes (LLM, Embedder, VectorStore)
@@ -165,14 +187,17 @@ hrCopilot/
 │   │       ├── action_agent.py      HR task automation
 │   │       ├── api_tools.py         Backend API tool implementations
 │   │       ├── permissions.py       RBAC action permissions
+│   │       ├── role_category_access.py  Document-level RBAC (role → category map)
 │   │       ├── router_agent.py      Intent classifier + router
 │   │       └── audit.py             AI audit logging
-│   ├── data/policies/               HR policy markdown files
+│   ├── api/v1/endpoints/admin.py    Admin CRUD endpoints
+│   ├── data/policies/               HR policy markdown files (+ runtime uploads)
 │   ├── scripts/seed.py              DB initialisation + data seeding
 │   └── .env.example                 Environment variable reference
 ├── frontend/
 │   ├── app/ai-copilot/              AI copilot page
+│   ├── app/admin/                   Admin portal (Users / Documents / Access Control)
 │   ├── components/ai/               Chat panel, source list, SQL table, action card
-│   └── lib/api.ts                   Typed API client
+│   └── lib/api.ts                   Typed API client (chat + admin)
 └── docs/                            Architecture, permissions, eval results
 ```
