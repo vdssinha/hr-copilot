@@ -1,13 +1,13 @@
 from typing import Optional
 import anthropic
-from app.core.config import settings
+from app.core.config import LLM_API_KEY, AI_LLM_MODEL
 from app.services.ai.interfaces.llm import BaseLLMProvider
 
 
 class AnthropicProvider(BaseLLMProvider):
     def __init__(self):
-        self._client = anthropic.Anthropic(api_key=settings.ANTHROPIC_API_KEY)
-        self._model = settings.AI_LLM_MODEL
+        self._client = anthropic.Anthropic(api_key=LLM_API_KEY)
+        self._model = AI_LLM_MODEL
 
     def generate(self, prompt: str, system: Optional[str] = None, **kwargs) -> str:
         msg = self._client.messages.create(

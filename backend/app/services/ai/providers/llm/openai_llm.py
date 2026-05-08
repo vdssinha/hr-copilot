@@ -1,16 +1,16 @@
 from typing import Optional
 from openai import OpenAI
-from app.core.config import settings
+from app.core.config import LLM_API_KEY, LLM_BASE_URL, AI_LLM_MODEL
 from app.services.ai.interfaces.llm import BaseLLMProvider
 
 
 class OpenAIProvider(BaseLLMProvider):
     def __init__(self):
-        kwargs = {"api_key": settings.OPENAI_API_KEY}
-        if settings.OPENAI_BASE_URL:
-            kwargs["base_url"] = settings.OPENAI_BASE_URL
+        kwargs = {"api_key": LLM_API_KEY}
+        if LLM_BASE_URL:
+            kwargs["base_url"] = LLM_BASE_URL
         self._client = OpenAI(**kwargs)
-        self._model = settings.AI_LLM_MODEL
+        self._model = AI_LLM_MODEL
 
     def generate(self, prompt: str, system: Optional[str] = None, **kwargs) -> str:
         resp = self._client.chat.completions.create(

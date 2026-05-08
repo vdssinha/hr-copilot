@@ -1,12 +1,12 @@
 from typing import Dict, List, Optional, Tuple
 import chromadb
-from app.core.config import settings
+from app.core.config import CHROMA_PERSIST_DIR
 from app.services.ai.interfaces.vector_store import BaseVectorStore, Document
 
 
 class ChromaVectorStore(BaseVectorStore):
     def __init__(self, collection_name: str = "hr_policies"):
-        self._client = chromadb.PersistentClient(path=settings.CHROMA_PERSIST_DIR)
+        self._client = chromadb.PersistentClient(path=CHROMA_PERSIST_DIR)
         # embedding_function=None: we manage embeddings externally
         self._collection = self._client.get_or_create_collection(
             name=collection_name,

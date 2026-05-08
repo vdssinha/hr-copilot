@@ -6,7 +6,7 @@ from typing import List
 from fastapi import APIRouter, BackgroundTasks, Depends, File, Form, HTTPException, UploadFile, status
 from sqlalchemy.orm import Session
 
-from app.core.config import settings
+from app.core.config import POLICY_UPLOAD_DIR
 from app.core.dependencies import get_current_user, require_role
 from app.core.security import hash_password
 from app.db.session import get_db
@@ -244,7 +244,7 @@ async def upload_policy(
     except ValueError as e:
         raise HTTPException(status_code=422, detail=str(e))
 
-    upload_dir = Path(settings.POLICY_UPLOAD_DIR) / policy_category.value.lower()
+    upload_dir = Path(POLICY_UPLOAD_DIR) / policy_category.value.lower()
     upload_dir.mkdir(parents=True, exist_ok=True)
     file_path = upload_dir / (file.filename or "upload")
     file_path.write_bytes(content)
@@ -272,7 +272,7 @@ def ingest_hr_data_endpoint(
     _: Employee = Depends(_require_admin),
 ):
     """Re-ingest hr_data.csv into the hr_data vector store collection."""
-    csv_path = Path(settings.POLICY_UPLOAD_DIR).parent / "hr" / "hr_data.csv"
+    csv_path = Path(POLICY_UPLOAD_DIR).parent / "hr" / "hr_data.csv"
     if not csv_path.exists():
         raise HTTPException(status_code=404, detail="hr_data.csv not found")
     background_tasks.add_task(ingest_hr_data, csv_path)

@@ -1,16 +1,16 @@
 from typing import List
 from openai import OpenAI
-from app.core.config import settings
+from app.core.config import EMBEDDER_API_KEY, EMBEDDER_BASE_URL, AI_EMBEDDING_MODEL
 from app.services.ai.interfaces.embedder import BaseEmbedder
 
 
 class OpenAIEmbedder(BaseEmbedder):
     def __init__(self):
-        kwargs = {"api_key": settings.OPENAI_API_KEY}
-        if settings.OPENAI_BASE_URL:
-            kwargs["base_url"] = settings.OPENAI_BASE_URL
+        kwargs = {"api_key": EMBEDDER_API_KEY}
+        if EMBEDDER_BASE_URL:
+            kwargs["base_url"] = EMBEDDER_BASE_URL
         self._client = OpenAI(**kwargs)
-        self._model = settings.AI_EMBEDDING_MODEL
+        self._model = AI_EMBEDDING_MODEL
 
     def embed(self, texts: List[str]) -> List[List[float]]:
         resp = self._client.embeddings.create(input=texts, model=self._model)

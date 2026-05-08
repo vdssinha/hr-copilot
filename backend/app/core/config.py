@@ -1,47 +1,65 @@
-from pydantic_settings import BaseSettings
-from functools import lru_cache
+"""Single source of truth for all configuration.
 
+Change ONE variable to swap a provider — no other code changes needed.
+All provider routing, API key resolution, and base URLs are decided here.
+"""
+import os
+from dotenv import load_dotenv
 
-class Settings(BaseSettings):
-    # AI provider selection
-    AI_LLM_PROVIDER: str = "anthropic"
-    AI_EMBEDDER_PROVIDER: str = "anthropic"
-    AI_VECTOR_STORE_PROVIDER: str = "chroma"
+load_dotenv()
 
-    AI_LLM_MODEL: str = "claude-sonnet-4-6"
-    AI_EMBEDDING_MODEL: str = "voyage-3"
+# ── LLM Provider ─────────────────────────────────────────────────────────────
+# Options: "anthropic" | "openai"
+#
+# "openai" works with OpenAI API, LM Studio, or any OpenAI-compatible endpoint.
+# Set OPENAI_BASE_URL=http://localhost:1234/v1 for LM Studio.
 
-    # API keys
-    ANTHROPIC_API_KEY: str = ""
-    OPENAI_API_KEY: str = ""
-    VOYAGE_API_KEY: str = ""  # falls back to ANTHROPIC_API_KEY if empty
-    OPENAI_BASE_URL: str = ""  # override for LM Studio / any OpenAI-compatible endpoint
+AI_LLM_PROVIDER = os.getenv("AI_LLM_PROVIDER", "anthropic")
+AI_LLM_MODEL    = os.getenv("AI_LLM_MODEL",    "claude-sonnet-4-6")
 
-    # Database
-    DATABASE_URL: str = "sqlite:///./cbnest.db"
+_LLM_SETTINGS = {
+    "anthropic": {"api_key_env": "ANTHROPIC_API_KEY", "base_url": None},
+    "openai":    {"api_key_env": "OPENAI_API_KEY",    "base_url": os.getenv("OPENAI_BASE_URL") or None},
+}
+LLM_API_KEY  = os.getenv(_LLM_SETTINGS[AI_LLM_PROVIDER]["api_key_env"], "")
+LLM_BASE_URL = _LLM_SETTINGS[AI_LLM_PROVIDER]["base_url"]
 
-    # JWT
-    SECRET_KEY: str = "change-me-in-production"
-    ALGORITHM: str = "HS256"
-    ACCESS_TOKEN_EXPIRE_MINUTES: int = 480
+# ── Embedder Provider ─────────────────────────────────────────────────────────
+# Options: "voyage" | "openai"
+#
+# "voyage" uses Voyage AI (api.voyageai.com); falls back to ANTHROPIC_API_KEY
+#          if VOYAGE_API_KEY is not set.
+# "openai" uses OpenAI or any OpenAI-compatible endpoint (respects OPENAI_BASE_URL).
 
-    # Vector store
-    CHROMA_PERSIST_DIR: str = "./data/chroma_db"
+AI_EMBEDDER_PROVIDER = os.getenv("AI_EMBEDDER_PROVIDER", "voyage")
+AI_EMBEDDING_MODEL   = os.getenv("AI_EMBEDDING_MODEL",   "voyage-3")
 
-    # Policy document uploads
-    POLICY_UPLOAD_DIR: str = "./data/policies"
+_EMBEDDER_SETTINGS = {
+    "voyage": {"api_key_env": "VOYAGE_API_KEY"},
+    "openai": {"api_key_env": "OPENAI_API_KEY"},
+}
+EMBEDDER_API_KEY  = os.getenv(_EMBEDDER_SETTINGS[AI_EMBEDDER_PROVIDER]["api_key_env"], "") \
+                    or os.getenv("ANTHROPIC_API_KEY", "")  # voyage falls back to Anthropic key
+EMBEDDER_BASE_URL = os.getenv("OPENAI_BASE_URL") or None   # used only when provider=openai
 
-    # App
-    APP_ENV: str = "development"
-    LOG_LEVEL: str = "INFO"
-    BACKEND_BASE_URL: str = "http://localhost:8000"
+# ── Vector Store ──────────────────────────────────────────────────────────────
+# Options: "chroma" | "faiss"
 
-    model_config = {"env_file": ".env", "extra": "ignore"}
+AI_VECTOR_STORE_PROVIDER = os.getenv("AI_VECTOR_STORE_PROVIDER", "chroma")
+CHROMA_PERSIST_DIR       = os.getenv("CHROMA_PERSIST_DIR", "./data/chroma_db")
 
+# ── Database ──────────────────────────────────────────────────────────────────
+DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./cbnest.db")
 
-@lru_cache
-def get_settings() -> Settings:
-    return Settings()
+# ── JWT ───────────────────────────────────────────────────────────────────────
+SECRET_KEY                  = os.getenv("SECRET_KEY", "change-me-in-production")
+ALGORITHM                   = os.getenv("ALGORITHM", "HS256")
+ACCESS_TOKEN_EXPIRE_MINUTES = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", "480"))
 
+# ── File paths ────────────────────────────────────────────────────────────────
+POLICY_UPLOAD_DIR = os.getenv("POLICY_UPLOAD_DIR", "./data/policies")
+BACKEND_BASE_URL  = os.getenv("BACKEND_BASE_URL",  "http://localhost:8000")
 
-settings = get_settings()
+# ── App ───────────────────────────────────────────────────────────────────────
+APP_ENV   = os.getenv("APP_ENV",   "development")
+LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO")

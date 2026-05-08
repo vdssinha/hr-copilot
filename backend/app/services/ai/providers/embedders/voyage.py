@@ -1,13 +1,13 @@
 from typing import List
 import voyageai
-from app.core.config import settings
+from app.core.config import EMBEDDER_API_KEY, AI_EMBEDDING_MODEL
 from app.services.ai.interfaces.embedder import BaseEmbedder
 
 
 class VoyageEmbedder(BaseEmbedder):
     def __init__(self):
-        self._client = voyageai.Client(api_key=settings.VOYAGE_API_KEY or settings.ANTHROPIC_API_KEY)
-        self._model = settings.AI_EMBEDDING_MODEL  # voyage-3
+        self._client = voyageai.Client(api_key=EMBEDDER_API_KEY)
+        self._model = AI_EMBEDDING_MODEL
 
     def embed(self, texts: List[str]) -> List[List[float]]:
         result = self._client.embed(texts, model=self._model, input_type="document")
