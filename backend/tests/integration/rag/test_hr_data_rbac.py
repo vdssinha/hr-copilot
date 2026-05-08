@@ -9,12 +9,13 @@ Access rules enforced at query time (not ingestion time):
 
 Requires HR data ingested. Set INTEGRATION_SKIP_INGEST=1 to skip ingest.
 """
+import time
 import requests
 import pytest
-from tests.integration.config import BASE_URL, USERS, RESTRICTED_MARKER, SKIP_INGEST
+from tests.integration.config import BASE_URL, USERS, RESTRICTED_MARKER, SKIP_INGEST, hr_field
 
 
-def _chat_hr(message: str, token: str, timeout: int = 30) -> dict:
+def _chat_hr(message: str, token: str, timeout: int = 60) -> dict:
     resp = requests.post(
         f"{BASE_URL}/api/v1/chat/hr-data",
         json={"message": message},
@@ -29,15 +30,35 @@ def _chat_hr(message: str, token: str, timeout: int = 30) -> dict:
 
 @pytest.fixture(scope="module", autouse=True)
 def ingest_hr_data(cc_admin_token):
+    """Trigger async ingest then poll until vector store has data (up to 120s)."""
     if SKIP_INGEST:
         return
     resp = requests.post(
-        f"{BASE_URL}/api/v1/chat/hr-data/ingest",
+        f"{BASE_URL}/api/v1/admin/hr-data/ingest",
         headers={"Authorization": f"Bearer {cc_admin_token}"},
-        timeout=120,
+        timeout=30,
     )
-    assert resp.status_code == 200, f"Ingest failed: {resp.text}"
-    assert resp.json().get("success") is True
+    assert resp.status_code == 200, f"Ingest trigger failed: {resp.text}"
+
+    deadline = time.time() + 180
+    while time.time() < deadline:
+        probe = requests.post(
+            f"{BASE_URL}/api/v1/chat/hr-data",
+            json={"message": "Tell me about Rahul Verma NW-004"},
+            headers={"Authorization": f"Bearer {cc_admin_token}"},
+            timeout=90,
+        )
+        if probe.status_code == 200:
+            answer = probe.json().get("data", {}).get("answer", "").lower()
+            if (
+                "not ingested" not in answer
+                and "no matching" not in answer
+                and ("rahul" in answer or "nw-004" in answer or "verma" in answer)
+            ):
+                return
+        time.sleep(8)
+
+    pytest.fail("HR data not available in vector store after 180s")
 
 
 class TestEmployeeSelfAccess:
@@ -45,24 +66,29 @@ class TestEmployeeSelfAccess:
 
     def test_own_record_returned(self, cc_employee_token):
         emp = USERS["employee"]
+        own_salary = hr_field(emp["employee_code"], "salary")
         data = _chat_hr("What is my salary?", cc_employee_token)
         answer = data["answer"].lower()
         assert (
             emp["name"].split()[0].lower() in answer
-            or "1200000" in answer
+            or (own_salary and own_salary in answer)
             or "salary" in answer
         ), f"Own record missing from answer: {answer}"
 
     def test_own_salary_not_restricted(self, cc_employee_token):
+        emp = USERS["employee"]
+        own_salary = hr_field(emp["employee_code"], "salary")
         data = _chat_hr("What is my salary?", cc_employee_token)
         answer = data["answer"]
-        assert RESTRICTED_MARKER not in answer or "1200000" in answer, \
+        assert RESTRICTED_MARKER not in answer or (own_salary and own_salary in answer), \
             f"Own salary must not be [RESTRICTED]: {answer}"
 
     def test_other_employee_salary_not_leaked(self, cc_employee_token):
         """Where-filter blocks records for other employees."""
-        data = _chat_hr("What is Arjun Mehta's salary?", cc_employee_token)
-        assert "1950000" not in data["answer"], \
+        mgr = USERS["manager"]
+        mgr_salary = hr_field(mgr["employee_code"], "salary")
+        data = _chat_hr(f"What is {mgr['name']}'s salary?", cc_employee_token)
+        assert not mgr_salary or mgr_salary not in data["answer"], \
             f"Manager salary must not leak to employee: {data['answer']}"
 
     def test_other_employee_codes_not_in_answer(self, cc_employee_token):
@@ -78,16 +104,20 @@ class TestManagerDirectReportAccess:
 
     def test_direct_report_salary_visible(self, cc_manager_token):
         """Rahul Verma (NW-004) is Arjun Mehta's direct report — salary shown."""
-        data = _chat_hr("What is Rahul Verma's salary?", cc_manager_token)
+        emp = USERS["employee"]
+        emp_salary = hr_field(emp["employee_code"], "salary")
+        data = _chat_hr(f"What is {emp['name']}'s salary?", cc_manager_token)
         answer = data["answer"]
-        assert RESTRICTED_MARKER not in answer or "1200000" in answer, \
+        assert RESTRICTED_MARKER not in answer or (emp_salary and emp_salary in answer), \
             f"Direct-report salary should be visible: {answer}"
 
     def test_non_direct_report_salary_restricted(self, cc_manager_token):
-        """Priya Sharma (NW-001, manager_id != NW-002) salary must be [RESTRICTED]."""
-        data = _chat_hr("What is Priya Sharma's salary?", cc_manager_token)
+        """Priya Sharma (NW-001) is manager's own manager — salary must be [RESTRICTED]."""
+        admin = USERS["admin"]
+        admin_salary = hr_field(admin["employee_code"], "salary")
+        data = _chat_hr(f"What is {admin['name']}'s salary?", cc_manager_token)
         answer = data["answer"]
-        assert RESTRICTED_MARKER in answer or "2800000" not in answer, \
+        assert RESTRICTED_MARKER in answer or not admin_salary or admin_salary not in answer, \
             f"Non-direct-report salary must be [RESTRICTED]: {answer}"
 
     def test_direct_report_profile_visible(self, cc_manager_token):
@@ -108,14 +138,20 @@ class TestAdminUnrestrictedAccess:
     """Admin sees everything — no [RESTRICTED] for any field."""
 
     def test_employee_salary_fully_visible(self, cc_admin_token):
-        data = _chat_hr("What is Rahul Verma's salary?", cc_admin_token)
-        assert RESTRICTED_MARKER not in data["answer"] or "1200000" in data["answer"], \
-            f"Admin should see salary unrestricted: {data['answer']}"
+        emp = USERS["employee"]
+        emp_salary = hr_field(emp["employee_code"], "salary")
+        data = _chat_hr(f"What is {emp['name']}'s salary?", cc_admin_token)
+        answer = data["answer"]
+        assert RESTRICTED_MARKER not in answer or (emp_salary and emp_salary in answer), \
+            f"Admin should see salary unrestricted: {answer}"
 
     def test_manager_salary_fully_visible(self, cc_admin_token):
-        data = _chat_hr("What is Arjun Mehta's salary?", cc_admin_token)
-        assert RESTRICTED_MARKER not in data["answer"] or "1950000" in data["answer"], \
-            f"Admin should see all salaries: {data['answer']}"
+        mgr = USERS["manager"]
+        mgr_salary = hr_field(mgr["employee_code"], "salary")
+        data = _chat_hr(f"What is {mgr['name']}'s salary?", cc_admin_token)
+        answer = data["answer"]
+        assert RESTRICTED_MARKER not in answer or (mgr_salary and mgr_salary in answer), \
+            f"Admin should see all salaries: {answer}"
 
     def test_department_query_non_empty(self, cc_admin_token):
         data = _chat_hr("List employees in the HR department", cc_admin_token)

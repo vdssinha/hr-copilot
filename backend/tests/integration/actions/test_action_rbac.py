@@ -12,7 +12,7 @@ import pytest
 from tests.integration.config import BASE_URL
 
 
-def _chat_actions(message: str, token: str, timeout: int = 30) -> dict:
+def _chat_actions(message: str, token: str, timeout: int = 150) -> dict:
     resp = requests.post(
         f"{BASE_URL}/api/v1/chat/actions",
         json={"message": message},

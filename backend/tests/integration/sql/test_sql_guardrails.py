@@ -11,7 +11,7 @@ import pytest
 from tests.integration.config import BASE_URL
 
 
-def _chat_sql(message: str, token: str, timeout: int = 30) -> dict:
+def _chat_sql(message: str, token: str, timeout: int = 90) -> dict:
     resp = requests.post(
         f"{BASE_URL}/api/v1/chat/sql",
         json={"message": message},

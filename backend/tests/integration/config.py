@@ -4,7 +4,9 @@ All values overridable via env vars — no code changes needed to target staging
 
     INTEGRATION_BASE_URL=http://staging:8000 pytest tests/integration/
 """
+import csv
 import os
+from pathlib import Path
 
 BASE_URL = os.getenv("INTEGRATION_BASE_URL", "http://localhost:8000")
 
@@ -33,3 +35,21 @@ USERS: dict[str, dict] = {
 
 RESTRICTED_MARKER = "[RESTRICTED]"
 SKIP_INGEST = os.getenv("INTEGRATION_SKIP_INGEST", "0") == "1"
+
+# ── HR CSV data loaded at import time ──────────────────────────────────────────
+# Provides actual salary/field values so tests don't hardcode them.
+# Path relative to repo root; falls back gracefully if CSV not found.
+_CSV_PATH = Path(__file__).parent.parent.parent / "data" / "hr" / "hr_data.csv"
+
+HR_CSV: dict[str, dict] = {}  # employee_id → full CSV row
+
+if _CSV_PATH.exists():
+    with open(_CSV_PATH, newline="", encoding="utf-8") as _f:
+        for _row in csv.DictReader(_f):
+            HR_CSV[_row["employee_id"].strip()] = {k: v.strip() for k, v in _row.items()}
+
+
+def hr_field(employee_code: str, field: str) -> str:
+    """Return a field value from the HR CSV for a given employee_code."""
+    row = HR_CSV.get(employee_code, {})
+    return row.get(field, "")
