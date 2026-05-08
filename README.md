@@ -43,6 +43,7 @@ All AI providers use a **plugin/strategy pattern** — swap any provider via `.e
 ### Prerequisites
 
 - Python 3.11+
+- [uv](https://docs.astral.sh/uv/getting-started/installation/) (`curl -LsSf https://astral.sh/uv/install.sh | sh`)
 - Node.js 18+
 - One of: Anthropic API key, OpenAI API key, or LM Studio running locally
 
@@ -50,15 +51,30 @@ All AI providers use a **plugin/strategy pattern** — swap any provider via `.e
 
 ```bash
 cd backend
-python -m venv venv && source venv/bin/activate
-pip install -r requirements.txt
 
+# 1. Create virtualenv and install dependencies
+uv venv
+uv pip install -r requirements.txt
+
+# 2. Configure environment
 cp .env.example .env
-# Edit .env with your provider settings (see below)
+# Edit .env with your provider settings (see Provider Setup below)
 
-python scripts/seed.py          # initialise DB + seed HR data + ingest policies
-uvicorn app.main:app --reload   # starts on http://localhost:8000
+# 3. Apply DB migrations
+uv run --env-file .env alembic upgrade head
+
+# 4. Seed database + ingest policies
+uv run --env-file .env python scripts/seed.py
+
+# 5. Start server
+uv run --env-file .env uvicorn app.main:app --reload
+# → http://localhost:8000
 ```
+
+> **Running tests**
+> ```bash
+> uv run --env-file .env python -m pytest tests/ -v
+> ```
 
 ### Frontend
 
@@ -67,7 +83,8 @@ cd frontend
 npm install
 cp .env.local.example .env.local
 # NEXT_PUBLIC_API_URL=http://localhost:8000
-npm run dev                     # starts on http://localhost:3000
+npm run dev
+# → http://localhost:3000
 ```
 
 Navigate to `http://localhost:3000/ai-copilot` for the copilot, or `http://localhost:3000/admin` for the admin portal.
@@ -82,7 +99,9 @@ Log in with a seeded account:
 
 ---
 
-## LM Studio Setup (local inference)
+## Provider Setup
+
+### LM Studio (local inference)
 
 1. Download and open LM Studio
 2. Load `google/gemma-4-31b` (or any instruction-following GGUF)
@@ -98,7 +117,7 @@ OPENAI_API_KEY=lm-studio
 OPENAI_BASE_URL=http://localhost:1234/v1
 ```
 
-## Anthropic + Voyage Setup
+### Anthropic + Voyage
 
 ```env
 AI_LLM_PROVIDER=anthropic
