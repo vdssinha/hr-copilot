@@ -77,13 +77,13 @@ services/ai/
 ├── providers/
 │   ├── llm/
 │   │   ├── anthropic.py      # AnthropicProvider implements BaseLLMProvider
-│   │   └── openai.py         # OpenAIProvider implements BaseLLMProvider
+│   │   └── openai_llm.py     # OpenAIProvider implements BaseLLMProvider (also LM Studio)
 │   ├── embedders/
-│   │   ├── anthropic.py      # AnthropicEmbedder
-│   │   └── openai.py         # OpenAIEmbedder
+│   │   ├── voyage.py         # VoyageEmbedder (selected by AI_EMBEDDER_PROVIDER=anthropic)
+│   │   └── openai_embedder.py # OpenAIEmbedder (selected by AI_EMBEDDER_PROVIDER=openai)
 │   └── vector_stores/
 │       ├── chroma.py         # ChromaVectorStore implements BaseVectorStore
-│       └── faiss.py          # FAISSVectorStore implements BaseVectorStore
+│       └── faiss_store.py    # FAISSVectorStore implements BaseVectorStore
 ├── factory.py           # Reads config → returns correct concrete instance
 ...
 ```
