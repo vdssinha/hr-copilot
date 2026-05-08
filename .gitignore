@@ -19,6 +19,7 @@ dist/
 
 # ChromaDB
 data/chroma_db/
+backend/data/chroma_db/
 
 # Node
 node_modules/
