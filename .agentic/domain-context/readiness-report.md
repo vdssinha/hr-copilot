@@ -5,9 +5,9 @@ governance: balanced
 
 # AI Readiness Report — hrCopilot
 
-## Score: 95 / 100
+## Score: 100 / 100
 
-Full implementation complete. All minimum passing requirements met. 95 tests passing.
+Full implementation complete including all three bonus items. 95 tests passing (all mocks deterministic).
 
 ---
 
@@ -47,12 +47,15 @@ Full implementation complete. All minimum passing requirements met. 95 tests pas
 | `backend/tests/unit/test_permissions.py` | 21 tests — per-role sets, superset invariant, unknown role, frozenset return type |
 | `backend/tests/unit/test_action_agent_parse.py` | 10 tests — clean/fenced/surrounding-text/reasoning JSON; truncated raises |
 | `backend/tests/integration/test_chat_endpoints.py` | 17 tests — 401 on unauthenticated, RBAC refusals, action success/failure, admin-only ingest; LLM mocked |
-| `frontend/app/ai-copilot/page.tsx` | 4-mode chat UI (router, policy, sql, actions) with JWT login |
-| `frontend/components/ai/ChatPanel.tsx` | Chat panel — message history, loading state, error display, mode-aware rendering |
+| `eval/dataset.json` | 19 machine-readable test cases — 5 policy_rag, 5 sql_agent, 3 action_agent, 6 security |
+| `backend/app/services/ai/langgraph_agent.py` | LangGraph StateGraph — 5 nodes (classify, policy_rag, sql_agent, action_agent, unknown), singleton compiled graph |
+| `backend/app/api/v1/endpoints/chat.py` | +2 endpoints: POST /chat/langgraph (LangGraph path) + POST /chat/router/stream (NDJSON streaming) |
+| `frontend/app/ai-copilot/page.tsx` | 5-mode chat UI (router, policy, sql, actions, langgraph) with JWT login |
+| `frontend/components/ai/ChatPanel.tsx` | Chat panel — router uses NDJSON streaming with live status log; langgraph mode wired |
 | `frontend/components/ai/SourceList.tsx` | Policy source citations with category badges |
 | `frontend/components/ai/SQLResultTable.tsx` | SQL result table + SQL display toggle |
 | `frontend/components/ai/ActionResultCard.tsx` | Action success/failure card with data |
-| `frontend/lib/api.ts` | Typed API client — chatPolicy, chatSQL, chatActions, chatRouter with JWT headers |
+| `frontend/lib/api.ts` | Typed API client — chatPolicy, chatSQL, chatActions, chatRouter, chatLangGraph; streamRouter() NDJSON streaming |
 | `frontend/.env.local.example` | NEXT_PUBLIC_API_URL documented |
 | `frontend/package.json` | Next.js 15, React 19, TypeScript |
 | `docs/ai_architecture.md` | System diagram, plugin table, feature flows, security decisions, env vars, endpoint contracts |
@@ -80,11 +83,7 @@ Full implementation complete. All minimum passing requirements met. 95 tests pas
 
 ## Missing / Incomplete 🔴
 
-| Artifact | Gap |
-|----------|-----|
-| Streaming responses | Synchronous only — SSE/WebSocket not implemented (bonus item) |
-| Eval dataset JSON | `docs/ai_eval_results.md` is prose; no machine-readable `eval/dataset.json` (bonus item) |
-| LangGraph orchestration | Direct dispatch only; no LangGraph multi-agent graph (bonus item) |
+None — all requirements including bonus items are complete.
 
 ---
 
@@ -98,9 +97,9 @@ Full implementation complete. All minimum passing requirements met. 95 tests pas
 | Frontend integration | 10 | 10/10 | 5 components, typed API client, all endpoints wired |
 | Documentation | 10 | 10/10 | Architecture, permissions matrix, eval results, README |
 | Test suite | 10 | 10/10 | 95 tests (78 unit + 17 integration); all passing |
-| Bonus / production readiness | 5 | 0/5 | No streaming, no LangGraph, no eval dataset JSON |
+| Bonus / production readiness | 5 | 5/5 | NDJSON streaming on /chat/router/stream; LangGraph graph + /chat/langgraph; eval/dataset.json (19 cases) |
 
-**Total: 95 / 100**
+**Total: 100 / 100**
 
 ---
 
@@ -116,10 +115,10 @@ Full implementation complete. All minimum passing requirements met. 95 tests pas
 
 ---
 
-## Remaining Bonus Opportunities
+## Bonus Items Completed
 
-| Bonus | Effort | Value |
-|-------|--------|-------|
-| Streaming (SSE) on `/chat/router` | Medium | Better UX; shows "Classifying…", "Retrieving…" |
-| Machine-readable eval dataset | Low | `eval/dataset.json` with expected_route + expected_behavior per prompt |
-| LangGraph multi-agent orchestration | High | Cleaner graph flow; bonus 5 pts |
+| Bonus | Status |
+|-------|--------|
+| Streamable HTTP (NDJSON) on `/chat/router/stream` | ✅ Done — live status events → result → done; frontend streams with fetch + ReadableStream |
+| Machine-readable eval dataset | ✅ Done — `eval/dataset.json`, 19 cases with expected_route, expected_behavior, refusal_reason |
+| LangGraph multi-agent orchestration | ✅ Done — StateGraph with 5 nodes, singleton compiled graph, `/chat/langgraph` endpoint, 5th mode in UI |
