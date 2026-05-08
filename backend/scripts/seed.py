@@ -473,6 +473,18 @@ def seed(db: Session) -> None:
     print("  Employee: rahul.verma@novaworks.in   / Employee@1234")
 
 
+HR_DATA_CSV = Path(__file__).parent.parent / "data" / "hr" / "hr_data.csv"
+
+
+def seed_hr_data() -> None:
+    from app.services.ai.hr_data_rag import ingest_hr_data
+    if not HR_DATA_CSV.exists():
+        print("  [skip] hr_data.csv not found")
+        return
+    count = ingest_hr_data(HR_DATA_CSV)
+    print(f"  [hr_data] ingested {count} chunks from {HR_DATA_CSV.name}")
+
+
 if __name__ == "__main__":
     Base.metadata.create_all(bind=engine)
     db = SessionLocal()
@@ -490,6 +502,10 @@ if __name__ == "__main__":
             db = SessionLocal()
 
         seed(db)
+
+        print("\nIngesting HR employee data into vector store…")
+        seed_hr_data()
+
     except Exception as e:
         db.rollback()
         print(f"Seed failed: {e}")

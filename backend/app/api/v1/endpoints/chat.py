@@ -13,6 +13,7 @@ from app.schemas.chat import ChatRequest
 from app.schemas.common import APIResponse
 from app.services.ai.action_agent import run_action
 from app.services.ai.audit import log_ai_interaction
+from app.services.ai.hr_data_rag import query_hr_data
 from app.services.ai.policy_rag import answer_policy_question, ingest_policies
 from app.services.ai.router_agent import route_and_answer, classify_intent
 from app.services.ai.sql_agent import run_sql_query
@@ -107,6 +108,27 @@ def chat_router(
         return APIResponse.ok(result)
     except Exception as e:
         log_ai_interaction(db, current_user, payload.message, AIIntent.ROUTER, ActionStatus.ERROR)
+        return APIResponse.fail(str(e))
+
+
+@router.post("/hr-data", response_model=APIResponse)
+def chat_hr_data(
+    payload: ChatRequest,
+    current_user: Employee = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Query employee HR data. Restricted to MANAGER and ADMIN roles."""
+    try:
+        result = query_hr_data(payload.message, current_user.role)
+        log_ai_interaction(
+            db, current_user, payload.message,
+            intent=AIIntent.SQL_QUERY,
+            action_status=ActionStatus.SUCCESS if result["rows_found"] else ActionStatus.REFUSED,
+            tool_name="hr_data_rag",
+        )
+        return APIResponse.ok(result)
+    except Exception as e:
+        log_ai_interaction(db, current_user, payload.message, AIIntent.SQL_QUERY, ActionStatus.ERROR)
         return APIResponse.fail(str(e))
 
 

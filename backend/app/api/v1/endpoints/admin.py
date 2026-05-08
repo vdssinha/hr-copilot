@@ -25,6 +25,7 @@ from app.schemas.admin import (
 )
 from app.schemas.common import APIResponse
 from app.services.ai.document_loader import extract_text_bytes
+from app.services.ai.hr_data_rag import ingest_hr_data
 from app.services.ai.policy_rag import ingest_policies
 
 router = APIRouter()
@@ -263,6 +264,19 @@ async def upload_policy(
     background_tasks.add_task(ingest_policies, db)
 
     return APIResponse.ok({"policy_id": policy.id, "status": "ingestion_queued"})
+
+
+@router.post("/hr-data/ingest", response_model=APIResponse)
+def ingest_hr_data_endpoint(
+    background_tasks: BackgroundTasks,
+    _: Employee = Depends(_require_admin),
+):
+    """Re-ingest hr_data.csv into the hr_data vector store collection."""
+    csv_path = Path(settings.POLICY_UPLOAD_DIR).parent / "hr" / "hr_data.csv"
+    if not csv_path.exists():
+        raise HTTPException(status_code=404, detail="hr_data.csv not found")
+    background_tasks.add_task(ingest_hr_data, csv_path)
+    return APIResponse.ok({"status": "ingestion_queued", "file": str(csv_path)})
 
 
 @router.delete("/policies/{policy_id}", status_code=status.HTTP_204_NO_CONTENT)
