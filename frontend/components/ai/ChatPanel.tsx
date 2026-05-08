@@ -4,13 +4,14 @@ import { useState, useRef, useEffect } from "react";
 import { SourceList } from "./SourceList";
 import { SQLResultTable } from "./SQLResultTable";
 import { ActionResultCard } from "./ActionResultCard";
+import { chatPolicy, chatSQL, chatActions, chatLangGraph, streamRouter, SSEEvent } from "@/lib/api";
 
-type Mode = "router" | "policy" | "sql" | "actions";
+export type Mode = "router" | "policy" | "sql" | "actions" | "langgraph";
 
 interface Message {
   role: "user" | "assistant";
   text: string;
-  // assistant extras
+  statusLog?: string[];   // SSE status messages shown under assistant bubble
   sources?: unknown[];
   rows?: unknown[];
   sql?: string;
@@ -25,41 +26,7 @@ interface ChatPanelProps {
   mode: Mode;
 }
 
-const API = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000/api/v1";
-
-async function sendMessage(mode: Mode, message: string, token: string) {
-  const path = mode === "router" ? "/chat/router"
-    : mode === "policy" ? "/chat/policy"
-    : mode === "sql" ? "/chat/sql"
-    : "/chat/actions";
-  const res = await fetch(`${API}${path}`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-    body: JSON.stringify({ message }),
-  });
-  return res.json();
-}
-
-function extractAssistantMessage(resp: unknown, mode: Mode): Omit<Message, "role"> {
-  const r = resp as Record<string, unknown>;
-  if (!r.success) return { text: (r.error as string) ?? "An error occurred.", error: r.error as string };
-  const data = r.data as Record<string, unknown>;
-
-  if (mode === "policy") {
-    return { text: data.answer as string, sources: data.sources as unknown[] };
-  }
-  if (mode === "sql") {
-    return { text: data.answer as string, rows: data.rows as unknown[], sql: data.sql as string };
-  }
-  if (mode === "actions") {
-    return {
-      text: data.answer as string,
-      action: data.action as string,
-      actionSuccess: data.success as boolean,
-      actionData: data.data as Record<string, unknown>,
-    };
-  }
-  // router: unwrap the inner result
+function extractFromRouterResult(data: Record<string, unknown>): Omit<Message, "role"> {
   const result = data.result as Record<string, unknown>;
   const route = data.route as Record<string, unknown>;
   const intent = route?.intent as string;
@@ -78,6 +45,7 @@ export function ChatPanel({ token, mode }: ChatPanelProps) {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
+  const [statusText, setStatusText] = useState("");
   const bottomRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: "smooth" }); }, [messages]);
@@ -89,14 +57,67 @@ export function ChatPanel({ token, mode }: ChatPanelProps) {
     setInput("");
     setMessages((m) => [...m, { role: "user", text }]);
     setLoading(true);
+    setStatusText("Thinking…");
+
     try {
-      const resp = await sendMessage(mode, text, token);
-      const msg = extractAssistantMessage(resp, mode);
-      setMessages((m) => [...m, { role: "assistant", ...msg }]);
+      if (mode === "router") {
+        // SSE streaming path
+        const statusLog: string[] = [];
+        let finalMsg: Omit<Message, "role"> = { text: "" };
+
+        await streamRouter(text, token, (event: SSEEvent) => {
+          if (event.type === "status") {
+            setStatusText(event.message);
+            statusLog.push(event.message);
+          } else if (event.type === "result") {
+            const ev = event as { type: "result"; route: unknown; result: unknown };
+            finalMsg = {
+              ...extractFromRouterResult({ route: ev.route, result: ev.result }),
+              statusLog: [...statusLog],
+            };
+          } else if (event.type === "error") {
+            finalMsg = { text: event.message, error: event.message };
+          }
+        });
+
+        setMessages((m) => [...m, { role: "assistant", ...finalMsg }]);
+
+      } else if (mode === "policy") {
+        const resp = await chatPolicy(text, token) as Record<string, unknown>;
+        if (!resp.success) { setMessages((m) => [...m, { role: "assistant", text: (resp.error as string) ?? "Error" }]); return; }
+        const d = resp.data as Record<string, unknown>;
+        setMessages((m) => [...m, { role: "assistant", text: d.answer as string, sources: d.sources as unknown[] }]);
+
+      } else if (mode === "sql") {
+        const resp = await chatSQL(text, token) as Record<string, unknown>;
+        if (!resp.success) { setMessages((m) => [...m, { role: "assistant", text: (resp.error as string) ?? "Error" }]); return; }
+        const d = resp.data as Record<string, unknown>;
+        setMessages((m) => [...m, { role: "assistant", text: d.answer as string, rows: d.rows as unknown[], sql: d.sql as string }]);
+
+      } else if (mode === "actions") {
+        const resp = await chatActions(text, token) as Record<string, unknown>;
+        if (!resp.success) { setMessages((m) => [...m, { role: "assistant", text: (resp.error as string) ?? "Error" }]); return; }
+        const d = resp.data as Record<string, unknown>;
+        setMessages((m) => [...m, {
+          role: "assistant",
+          text: d.answer as string,
+          action: d.action as string,
+          actionSuccess: d.success as boolean,
+          actionData: d.data as Record<string, unknown>,
+        }]);
+
+      } else if (mode === "langgraph") {
+        const resp = await chatLangGraph(text, token) as Record<string, unknown>;
+        if (!resp.success) { setMessages((m) => [...m, { role: "assistant", text: (resp.error as string) ?? "Error" }]); return; }
+        const d = resp.data as Record<string, unknown>;
+        setMessages((m) => [...m, { role: "assistant", ...extractFromRouterResult(d) }]);
+      }
+
     } catch {
       setMessages((m) => [...m, { role: "assistant", text: "Network error. Check the backend is running." }]);
     } finally {
       setLoading(false);
+      setStatusText("");
     }
   }
 
@@ -119,6 +140,13 @@ export function ChatPanel({ token, mode }: ChatPanelProps) {
               <p className="whitespace-pre-wrap">{msg.text}</p>
               {msg.role === "assistant" && (
                 <>
+                  {msg.statusLog && msg.statusLog.length > 0 && (
+                    <div className="mt-2 space-y-1">
+                      {msg.statusLog.map((s, j) => (
+                        <p key={j} className="text-xs text-gray-400 italic">↳ {s}</p>
+                      ))}
+                    </div>
+                  )}
                   {msg.sources && <SourceList sources={msg.sources as { title: string; category: string; filename?: string }[]} />}
                   {msg.rows && msg.rows.length > 0 && (
                     <SQLResultTable rows={msg.rows as Record<string, unknown>[]} sql={msg.sql} showSQL />
@@ -137,8 +165,8 @@ export function ChatPanel({ token, mode }: ChatPanelProps) {
         ))}
         {loading && (
           <div className="flex justify-start">
-            <div className="bg-white border border-gray-200 rounded-lg px-4 py-2 text-sm text-gray-400 shadow-sm">
-              Thinking…
+            <div className="bg-white border border-gray-200 rounded-lg px-4 py-2 text-sm text-gray-400 shadow-sm animate-pulse">
+              {statusText || "Thinking…"}
             </div>
           </div>
         )}

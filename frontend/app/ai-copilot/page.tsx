@@ -4,13 +4,14 @@ import { useState } from "react";
 import { ChatPanel } from "@/components/ai/ChatPanel";
 import { login } from "@/lib/api";
 
-type Mode = "router" | "policy" | "sql" | "actions";
+type Mode = "router" | "policy" | "sql" | "actions" | "langgraph";
 
 const MODES: { id: Mode; label: string; description: string }[] = [
   { id: "router", label: "Smart Copilot", description: "Auto-routes to the right assistant" },
   { id: "policy", label: "HR Policy", description: "Answer HR policy questions" },
   { id: "sql", label: "People & Data", description: "Query employees, projects, skills" },
   { id: "actions", label: "HR Tasks", description: "Apply leave, create tickets, and more" },
+  { id: "langgraph", label: "LangGraph", description: "Multi-agent graph orchestration" },
 ];
 
 export default function AICopilotPage() {
