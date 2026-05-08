@@ -53,6 +53,9 @@ export const chatRouter = (message: string, token: string) =>
 export const chatLangGraph = (message: string, token: string) =>
   post("/chat/langgraph", { message }, token);
 
+export const chatHrData = (message: string, token: string) =>
+  post("/chat/hr-data", { message }, token);
+
 // Chat — SSE streaming (router/stream)
 export type SSEEvent =
   | { type: "status"; message: string }
