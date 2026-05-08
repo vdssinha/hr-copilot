@@ -31,6 +31,7 @@ from app.models.hr_policy import HRPolicy, PolicyCategory
 from app.models.payroll import PayrollRecord, PaymentStatus
 from app.models.job_history import JobHistory
 from app.models.onboarding import OnboardingTask, OnboardingStatus
+from app.models.role_category_access import RoleCategoryAccess
 
 
 POLICY_DIR = Path(__file__).parent.parent / "data" / "policies"
@@ -464,6 +465,33 @@ def seed(db: Session) -> None:
             status=OnboardingStatus.COMPLETED,
             completed_at=datetime(2026, 3, 20),
         ))
+
+    # ── Default role → category access ────────────────────────────────────────
+    _ROLE_DEFAULTS = [
+        ("EMPLOYEE", "LEAVE"),
+        ("EMPLOYEE", "ATTENDANCE"),
+        ("EMPLOYEE", "CODE_OF_CONDUCT"),
+        ("EMPLOYEE", "BENEFITS"),
+        ("EMPLOYEE", "IT"),
+        ("EMPLOYEE", "GENERAL"),
+        ("MANAGER", "LEAVE"),
+        ("MANAGER", "ATTENDANCE"),
+        ("MANAGER", "CODE_OF_CONDUCT"),
+        ("MANAGER", "BENEFITS"),
+        ("MANAGER", "COMPENSATION"),
+        ("MANAGER", "IT"),
+        ("MANAGER", "GENERAL"),
+        ("ADMIN", "LEAVE"),
+        ("ADMIN", "ATTENDANCE"),
+        ("ADMIN", "CODE_OF_CONDUCT"),
+        ("ADMIN", "BENEFITS"),
+        ("ADMIN", "COMPENSATION"),
+        ("ADMIN", "IT"),
+        ("ADMIN", "GENERAL"),
+    ]
+    for role, cat in _ROLE_DEFAULTS:
+        if not db.query(RoleCategoryAccess).filter_by(role=role, category=cat).first():
+            db.add(RoleCategoryAccess(role=role, category=cat))
 
     db.commit()
     print("Seed completed successfully.")
