@@ -10,6 +10,7 @@ from app.schemas.common import APIResponse
 from app.services.ai.action_agent import run_action
 from app.services.ai.audit import log_ai_interaction
 from app.services.ai.policy_rag import answer_policy_question, ingest_policies
+from app.services.ai.router_agent import route_and_answer
 from app.services.ai.sql_agent import run_sql_query
 
 router = APIRouter()
@@ -76,6 +77,32 @@ def chat_actions(
         return APIResponse.ok(result)
     except Exception as e:
         log_ai_interaction(db, current_user, payload.message, AIIntent.HR_ACTION, ActionStatus.ERROR)
+        return APIResponse.fail(str(e))
+
+
+@router.post("/router", response_model=APIResponse)
+def chat_router(
+    payload: ChatRequest,
+    current_user: Employee = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    try:
+        result = route_and_answer(db, current_user, payload.message)
+        route_intent = result["route"]["intent"]
+        intent_map = {
+            "POLICY_QA": AIIntent.POLICY_QA,
+            "SQL_QUERY": AIIntent.SQL_QUERY,
+            "HR_ACTION": AIIntent.HR_ACTION,
+        }
+        log_ai_interaction(
+            db, current_user, payload.message,
+            intent=intent_map.get(route_intent, AIIntent.UNKNOWN),
+            action_status=ActionStatus.SUCCESS,
+            tool_name="router",
+        )
+        return APIResponse.ok(result)
+    except Exception as e:
+        log_ai_interaction(db, current_user, payload.message, AIIntent.ROUTER, ActionStatus.ERROR)
         return APIResponse.fail(str(e))
 
 
