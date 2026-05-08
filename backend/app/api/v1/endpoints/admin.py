@@ -289,15 +289,14 @@ def delete_policy(
     if not policy:
         raise HTTPException(status_code=404, detail="Policy not found")
 
-    policy.is_active = False
-    db.commit()
-
-    # Remove chunks from vector store
     from app.services.ai import factory as _factory
     store = _factory.get_vector_store("hr_policies")
     try:
         store.delete_where({"policy_id": policy_id})
-    except Exception:
-        pass  # Non-fatal: will be excluded on next ingest
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"VectorDB purge failed: {e}")
+
+    db.delete(policy)
+    db.commit()
 
 

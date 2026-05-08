@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
+import { Trash2, Pencil } from "lucide-react";
 import { admin, AdminUser, AdminRole, AdminCategory, AdminPolicy } from "@/lib/api";
 import { getToken, getUser, clearAuth } from "@/lib/auth";
 
@@ -209,14 +210,15 @@ export default function AdminPage() {
     }
   }
 
-  async function handleDeletePolicy(id: number) {
-    if (!confirm("Deactivate this policy?")) return;
+  async function handleDeletePolicy(id: number, title: string) {
+    if (!confirm(`Delete "${title}"? This permanently removes it from the database and all vector embeddings.`)) return;
     const res = await admin.deletePolicy(token, id);
     if (res.status === 204) {
-      setPolicies(prev => prev.map(p => p.id === id ? { ...p, is_active: false } : p));
-      showToast("Policy deactivated", true);
+      setPolicies(prev => prev.filter(p => p.id !== id));
+      showToast("Policy deleted and embeddings purged", true);
     } else {
-      showToast("Failed", false);
+      const detail = (res.data as unknown as { detail?: string })?.detail ?? "Delete failed";
+      showToast(detail, false);
     }
   }
 
@@ -416,9 +418,15 @@ export default function AdminPage() {
                       <td className="px-5 py-3.5 text-right">
                         <div className="flex gap-1 justify-end">
                           <button onClick={() => { setEditUserId(u.id); setEditUserFields({ name: u.name, role: u.role, status: u.status }); }}
-                            className="text-gray-400 hover:text-blue-600 p-1 rounded text-xs transition">Edit</button>
+                            title="Edit user"
+                            className="text-gray-400 hover:text-blue-600 p-1 rounded transition">
+                            <Pencil className="w-4 h-4" />
+                          </button>
                           <button onClick={() => handleDeleteUser(u.id)}
-                            className="text-gray-400 hover:text-red-500 p-1 rounded text-xs transition">Del</button>
+                            title="Delete user"
+                            className="text-gray-400 hover:text-red-500 p-1 rounded transition">
+                            <Trash2 className="w-4 h-4" />
+                          </button>
                         </div>
                       </td>
                     </tr>
@@ -511,7 +519,13 @@ export default function AdminPage() {
                       <td className="px-5 py-3.5 text-gray-400 text-xs">{new Date(p.created_at).toLocaleDateString()}</td>
                       <td className="px-5 py-3.5 text-right">
                         {p.is_active && (
-                          <button onClick={() => handleDeletePolicy(p.id)} className="text-gray-400 hover:text-red-500 text-xs transition">Del</button>
+                          <button
+                            onClick={() => handleDeletePolicy(p.id, p.title)}
+                            title="Delete policy and purge embeddings"
+                            className="text-gray-400 hover:text-red-500 transition-colors p-1 rounded"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
                         )}
                       </td>
                     </tr>
