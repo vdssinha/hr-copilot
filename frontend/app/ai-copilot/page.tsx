@@ -1,131 +1,139 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
+import {
+  Bot, Zap, FileText, Database, ListTodo, GitBranch, Users,
+  LogOut, ChevronRight,
+} from "lucide-react";
 import { ChatPanel } from "@/components/ai/ChatPanel";
-import { login } from "@/lib/api";
+import { getToken, getUser, clearAuth } from "@/lib/auth";
 
-type Mode = "router" | "policy" | "sql" | "actions" | "langgraph";
+type Mode = "router" | "policy" | "sql" | "actions" | "langgraph" | "hr-data";
 
-const MODES: { id: Mode; label: string; description: string }[] = [
-  { id: "router", label: "Smart Copilot", description: "Auto-routes to the right assistant" },
-  { id: "policy", label: "HR Policy", description: "Answer HR policy questions" },
-  { id: "sql", label: "People & Data", description: "Query employees, projects, skills" },
-  { id: "actions", label: "HR Tasks", description: "Apply leave, create tickets, and more" },
-  { id: "langgraph", label: "LangGraph", description: "Multi-agent graph orchestration" },
+const MODES: { id: Mode; label: string; description: string; icon: React.ElementType }[] = [
+  { id: "router",   label: "Smart Copilot",  description: "Auto-routes to the right assistant", icon: Zap },
+  { id: "policy",   label: "HR Policy",      description: "Answer HR policy questions",          icon: FileText },
+  { id: "sql",      label: "People & Data",  description: "Query employees, projects, skills",   icon: Database },
+  { id: "actions",  label: "HR Tasks",       description: "Apply leave, create tickets, more",   icon: ListTodo },
+  { id: "langgraph",label: "LangGraph",      description: "Multi-agent graph orchestration",     icon: GitBranch },
+  { id: "hr-data",  label: "HR Employee Data",description: "Semantic search over employee CSV", icon: Users },
 ];
 
+const ROLE_COLORS: Record<string, string> = {
+  ADMIN:    "bg-violet-100 text-violet-700",
+  MANAGER:  "bg-blue-100 text-blue-700",
+  EMPLOYEE: "bg-emerald-100 text-emerald-700",
+};
+
 export default function AICopilotPage() {
-  const [token, setToken] = useState("");
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [loginError, setLoginError] = useState("");
-  const [loggingIn, setLoggingIn] = useState(false);
-  const [mode, setMode] = useState<Mode>("router");
+  const router = useRouter();
+  const [token, setToken]   = useState<string | null>(null);
+  const [mode, setMode]     = useState<Mode>("router");
   const [userName, setUserName] = useState("");
   const [userRole, setUserRole] = useState("");
+  const [ready, setReady]   = useState(false);
 
-  async function handleLogin(e: React.FormEvent) {
-    e.preventDefault();
-    setLoggingIn(true);
-    setLoginError("");
-    try {
-      const resp = await login(email, password);
-      if (resp.success) {
-        setToken(resp.data.access_token);
-        setUserName(resp.data.name);
-        setUserRole(resp.data.role);
-      } else {
-        setLoginError(resp.error ?? "Login failed");
-      }
-    } catch {
-      setLoginError("Network error. Is the backend running?");
-    } finally {
-      setLoggingIn(false);
+  useEffect(() => {
+    const t = getToken();
+    const u = getUser();
+    if (!t || !u) {
+      router.replace("/login");
+      return;
     }
+    setToken(t);
+    setUserName(u.name);
+    setUserRole(u.role);
+    setReady(true);
+  }, [router]);
+
+  function handleSignOut() {
+    clearAuth();
+    router.replace("/login");
   }
 
-  if (!token) {
-    return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-8 w-full max-w-sm">
-          <h1 className="text-xl font-bold text-gray-900 mb-1">NovaWorks HR Copilot</h1>
-          <p className="text-sm text-gray-500 mb-6">Sign in to continue</p>
-          <form onSubmit={handleLogin} className="space-y-4">
-            <input
-              className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-              type="email" placeholder="Email" value={email}
-              onChange={(e) => setEmail(e.target.value)} required
-            />
-            <input
-              className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-              type="password" placeholder="Password" value={password}
-              onChange={(e) => setPassword(e.target.value)} required
-            />
-            {loginError && <p className="text-xs text-red-600">{loginError}</p>}
-            <button
-              type="submit" disabled={loggingIn}
-              className="w-full bg-blue-600 text-white rounded-lg py-2 text-sm font-medium hover:bg-blue-700 disabled:opacity-50 transition-colors"
-            >
-              {loggingIn ? "Signing in…" : "Sign In"}
-            </button>
-          </form>
-          <div className="mt-4 text-xs text-gray-400 space-y-1">
-            <p>Demo accounts:</p>
-            <p>priya.sharma@novaworks.in / Admin@1234</p>
-            <p>arjun.mehta@novaworks.in / Manager@1234</p>
-            <p>rahul.verma@novaworks.in / Employee@1234</p>
-          </div>
-        </div>
-      </div>
-    );
-  }
+  if (!ready) return null;
+
+  const activeMode = MODES.find((m) => m.id === mode)!;
 
   return (
-    <div className="min-h-screen bg-gray-50 flex flex-col">
-      {/* Header */}
-      <header className="bg-white border-b border-gray-200 px-6 py-3 flex items-center justify-between">
-        <div>
-          <h1 className="text-base font-bold text-gray-900">NovaWorks HR Copilot</h1>
-          <p className="text-xs text-gray-500">{userName} · <span className="uppercase">{userRole}</span></p>
+    <div className="flex h-screen overflow-hidden bg-slate-50">
+      {/* ── Sidebar ───────────────────────────────────────────────────────── */}
+      <aside className="flex h-full w-60 shrink-0 flex-col bg-sidebar">
+        {/* Logo */}
+        <div className="flex items-center gap-2.5 px-4 py-5">
+          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-brand">
+            <Bot className="h-4 w-4 text-white" />
+          </div>
+          <div>
+            <p className="text-sm font-semibold text-sidebar-fg">HR Copilot</p>
+            <p className="text-xs text-slate-500">NovaWorks</p>
+          </div>
         </div>
-        <button
-          onClick={() => { setToken(""); setUserName(""); setUserRole(""); }}
-          className="text-xs text-gray-400 hover:text-gray-600"
-        >
-          Sign out
-        </button>
-      </header>
 
-      <div className="flex flex-1 overflow-hidden">
-        {/* Mode sidebar */}
-        <nav className="w-56 bg-white border-r border-gray-200 p-3 flex flex-col gap-1 shrink-0">
-          {MODES.map((m) => (
-            <button
-              key={m.id}
-              onClick={() => setMode(m.id)}
-              className={`rounded-lg px-3 py-2.5 text-left transition-colors ${
-                mode === m.id
-                  ? "bg-blue-50 text-blue-700 border border-blue-200"
-                  : "text-gray-700 hover:bg-gray-50"
-              }`}
-            >
-              <p className="text-sm font-medium">{m.label}</p>
-              <p className="text-xs text-gray-500 mt-0.5">{m.description}</p>
-            </button>
-          ))}
+        <div className="mx-4 h-px bg-white/10" />
+
+        {/* Nav modes */}
+        <nav className="flex-1 overflow-y-auto px-2 py-3 space-y-0.5 scrollbar-thin">
+          {MODES.map(({ id, label, description, icon: Icon }) => {
+            const active = mode === id;
+            return (
+              <button
+                key={id}
+                onClick={() => setMode(id)}
+                className={`group flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left transition-colors ${
+                  active
+                    ? "bg-brand text-white"
+                    : "text-slate-400 hover:bg-white/10 hover:text-slate-200"
+                }`}
+              >
+                <Icon className={`h-4 w-4 shrink-0 ${active ? "text-white" : "text-slate-500 group-hover:text-slate-300"}`} />
+                <div className="min-w-0">
+                  <p className={`text-sm font-medium truncate ${active ? "text-white" : ""}`}>{label}</p>
+                  <p className={`text-xs truncate mt-0.5 ${active ? "text-white/70" : "text-slate-600"}`}>{description}</p>
+                </div>
+                {active && <ChevronRight className="ml-auto h-3.5 w-3.5 shrink-0 text-white/60" />}
+              </button>
+            );
+          })}
         </nav>
 
-        {/* Chat area */}
-        <main className="flex-1 flex flex-col overflow-hidden">
-          <div className="px-4 py-2 bg-white border-b border-gray-100">
-            <p className="text-xs text-gray-500">
-              Mode: <span className="font-medium text-gray-700">{MODES.find((m) => m.id === mode)?.label}</span>
-              {" — "}{MODES.find((m) => m.id === mode)?.description}
-            </p>
+        <div className="mx-4 h-px bg-white/10" />
+
+        {/* User info + logout */}
+        <div className="px-3 py-4 flex items-center gap-3">
+          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-brand/20 text-sm font-semibold text-brand-light">
+            {userName.charAt(0).toUpperCase()}
           </div>
-          <ChatPanel key={mode} token={token} mode={mode} />
-        </main>
-      </div>
+          <div className="min-w-0 flex-1">
+            <p className="text-sm font-medium text-slate-200 truncate">{userName}</p>
+            <span className={`inline-block text-xs px-1.5 py-0.5 rounded font-medium mt-0.5 ${ROLE_COLORS[userRole] ?? "bg-slate-100 text-slate-600"}`}>
+              {userRole}
+            </span>
+          </div>
+          <button
+            onClick={handleSignOut}
+            title="Sign out"
+            className="shrink-0 text-slate-600 hover:text-slate-300 transition-colors"
+          >
+            <LogOut className="h-4 w-4" />
+          </button>
+        </div>
+      </aside>
+
+      {/* ── Main area ─────────────────────────────────────────────────────── */}
+      <main className="flex flex-1 flex-col overflow-hidden">
+        {/* Mode header bar */}
+        <header className="flex items-center gap-3 border-b border-slate-200 bg-white px-6 py-3">
+          <activeMode.icon className="h-4 w-4 text-brand shrink-0" />
+          <div>
+            <p className="text-sm font-semibold text-slate-800">{activeMode.label}</p>
+            <p className="text-xs text-slate-500">{activeMode.description}</p>
+          </div>
+        </header>
+
+        <ChatPanel key={mode} token={token!} mode={mode} />
+      </main>
     </div>
   );
 }
