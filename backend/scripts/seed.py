@@ -35,12 +35,38 @@ from app.models.onboarding import OnboardingTask, OnboardingStatus
 
 POLICY_DIR = Path(__file__).parent.parent / "data" / "policies"
 
+# Maps subdirectory name → PolicyCategory
+_SUBDIR_CATEGORY: dict[str, "PolicyCategory"] = {}  # populated after import
+
+_SUPPORTED_EXTENSIONS = {".md", ".txt", ".pdf", ".docx"}
+
+
+def _build_subdir_map() -> dict[str, "PolicyCategory"]:
+    from app.models.hr_policy import PolicyCategory
+    return {
+        "leave": PolicyCategory.LEAVE,
+        "attendance": PolicyCategory.ATTENDANCE,
+        "code_of_conduct": PolicyCategory.CODE_OF_CONDUCT,
+        "benefits": PolicyCategory.BENEFITS,
+        "compensation": PolicyCategory.COMPENSATION,
+        "it": PolicyCategory.IT,
+        "general": PolicyCategory.GENERAL,
+    }
+
 
 def load_policy_content(filename: str) -> str:
     path = POLICY_DIR / filename
     if path.exists():
         return path.read_text(encoding="utf-8")
     return f"# {filename}\n\nPolicy content not found."
+
+
+def _extract_text_from_path(path: Path) -> str:
+    """Extract plain text from .md / .txt / .pdf / .docx."""
+    import sys
+    sys.path.insert(0, str(Path(__file__).parent.parent))
+    from app.services.ai.document_loader import extract_text
+    return extract_text(path)
 
 
 def seed(db: Session) -> None:
@@ -348,6 +374,7 @@ def seed(db: Session) -> None:
         ("Code of Conduct Policy", PolicyCategory.CODE_OF_CONDUCT, "seed_policy_04_code_of_conduct.md"),
         ("Employee Benefits Policy", PolicyCategory.BENEFITS, "seed_policy_05_benefits.md"),
     ]
+    existing_titles: set[str] = set()
     for title, category, filename in policy_files:
         content = load_policy_content(filename)
         db.add(HRPolicy(
@@ -358,6 +385,35 @@ def seed(db: Session) -> None:
             is_active=True,
             created_by_id=admin.id,
         ))
+        existing_titles.add(title)
+
+    # ── Auto-scan data/policies/{category}/ subdirectories ────────────────────
+    subdir_map = _build_subdir_map()
+    for subdir, cat in subdir_map.items():
+        subdir_path = POLICY_DIR / subdir
+        if not subdir_path.is_dir():
+            continue
+        for file_path in sorted(subdir_path.iterdir()):
+            if file_path.suffix.lower() not in _SUPPORTED_EXTENSIONS:
+                continue
+            title = file_path.stem.replace("_", " ").replace("-", " ").title()
+            if title in existing_titles:
+                continue
+            try:
+                content = _extract_text_from_path(file_path)
+            except Exception as e:
+                print(f"  [skip] {file_path.name}: {e}")
+                continue
+            db.add(HRPolicy(
+                title=title,
+                content=content,
+                category=cat,
+                filename=file_path.name,
+                is_active=True,
+                created_by_id=admin.id,
+            ))
+            existing_titles.add(title)
+            print(f"  [policy] {file_path.name} → {cat.value}")
 
     # ── Job History ───────────────────────────────────────────────────────────
     db.add(JobHistory(

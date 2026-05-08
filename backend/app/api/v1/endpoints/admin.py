@@ -24,13 +24,14 @@ from app.schemas.admin import (
     AdminUserUpdate,
 )
 from app.schemas.common import APIResponse
+from app.services.ai.document_loader import extract_text_bytes
 from app.services.ai.policy_rag import ingest_policies
 
 router = APIRouter()
 
 _require_admin = require_role(EmployeeRole.ADMIN)
 
-_ALLOWED_POLICY_EXTENSIONS = {".md", ".txt", ".pdf"}
+_ALLOWED_POLICY_EXTENSIONS = {".md", ".txt", ".pdf", ".docx"}
 
 
 # ── Users ─────────────────────────────────────────────────────────────────────
@@ -237,7 +238,10 @@ async def upload_policy(
         )
 
     content = await file.read()
-    text = _extract_text(content, suffix, file.filename or "")
+    try:
+        text = extract_text_bytes(content, suffix, file.filename or "")
+    except ValueError as e:
+        raise HTTPException(status_code=422, detail=str(e))
 
     upload_dir = Path(settings.POLICY_UPLOAD_DIR) / policy_category.value.lower()
     upload_dir.mkdir(parents=True, exist_ok=True)
@@ -283,18 +287,3 @@ def delete_policy(
         pass  # Non-fatal: will be excluded on next ingest
 
 
-def _extract_text(content: bytes, suffix: str, filename: str) -> str:
-    if suffix in {".md", ".txt"}:
-        return content.decode("utf-8", errors="replace")
-    if suffix == ".pdf":
-        try:
-            import pypdf
-            import io
-            reader = pypdf.PdfReader(io.BytesIO(content))
-            return "\n\n".join(page.extract_text() or "" for page in reader.pages)
-        except ImportError:
-            raise HTTPException(
-                status_code=422,
-                detail="PDF support requires 'pypdf'. Install it: pip install pypdf",
-            )
-    raise HTTPException(status_code=400, detail=f"Cannot extract text from '{filename}'")
