@@ -69,6 +69,9 @@ export default function AdminPage() {
   const [editUserFields, setEditUserFields] = useState<{ name: string; role: string; status: string }>({ name: "", role: "", status: "" });
   const [savingUser, setSavingUser] = useState(false);
 
+  // policy list filter
+  const [showInactivePolcies, setShowInactivePolicies] = useState(false);
+
   // policy upload
   const [showUpload, setShowUpload] = useState(false);
   const [uploadTitle, setUploadTitle] = useState("");
@@ -443,9 +446,16 @@ export default function AdminPage() {
             <div className="flex items-center justify-between">
               <div>
                 <h2 className="font-semibold text-gray-900">Policy Documents</h2>
-                <p className="text-xs text-gray-400 mt-0.5">Upload and manage HR policy documents</p>
+                <p className="text-xs text-gray-400 mt-0.5">
+                  {policies.filter(p => p.is_active).length} active ·{" "}
+                  {policies.filter(p => p.is_active && p.embeddings_generated_at).length} indexed
+                </p>
               </div>
               <div className="flex gap-2">
+                <button onClick={() => setShowInactivePolicies(v => !v)}
+                  className="text-xs text-gray-500 border border-gray-200 bg-white px-3 py-2 rounded-lg hover:bg-gray-50 transition">
+                  {showInactivePolcies ? "Hide deleted" : "Show all"}
+                </button>
                 <button onClick={() => setShowUpload(v => !v)}
                   className="flex items-center gap-1.5 text-gray-600 text-sm font-medium px-3 py-2 border border-gray-200 bg-white rounded-lg hover:bg-gray-50 transition">
                   {showUpload ? "Cancel" : "↑ Upload"}
@@ -502,10 +512,10 @@ export default function AdminPage() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-100">
-                  {policies.length === 0 ? (
+                  {policies.filter(p => showInactivePolcies || p.is_active).length === 0 ? (
                     <tr><td colSpan={6} className="px-5 py-8 text-center text-gray-400 text-xs">No policies. Upload one above or click Re-ingest All.</td></tr>
-                  ) : policies.map(p => (
-                    <tr key={p.id} className={`hover:bg-gray-50 transition-colors ${!p.is_active ? "opacity-50" : ""}`}>
+                  ) : policies.filter(p => showInactivePolcies || p.is_active).map(p => (
+                    <tr key={p.id} className={`hover:bg-gray-50 transition-colors ${!p.is_active ? "opacity-40" : ""}`}>
                       <td className="px-5 py-3.5 font-medium text-gray-800 max-w-[200px] truncate">{p.title}</td>
                       <td className="px-5 py-3.5"><Badge value={p.category} type="category" /></td>
                       <td className="px-5 py-3.5 text-gray-400 text-xs">{p.filename ?? "—"}</td>
