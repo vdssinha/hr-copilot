@@ -1,0 +1,19 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(pip install *)",
+      "Bash(pip show *)",
+      "Bash(pip list)",
+      "Bash(pip freeze)",
+      "Bash(pip uninstall *)",
+      "Bash(mkdir -p *)",
+      "Bash(touch *)",
+      "Bash(npm run typecheck*)",
+      "Bash(npm run lint*)",
+      "Bash(kill $(lsof -ti:*)",
+      "Bash(lsof -ti:*)",
+      "Bash(venv/bin/python *)",
+      "Bash(.venv/bin/python *)"
+    ]
+  }
+}
