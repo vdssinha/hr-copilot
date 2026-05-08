@@ -22,9 +22,9 @@ _ALLOWED_TABLES = [
 # Schema description with sensitive columns pre-excluded
 _TABLE_SCHEMAS = {
     "employees": (
-        "employees(id, employee_code, name, email, role [values: EMPLOYEE|MANAGER|ADMIN], "
+        "employees(id, employee_code, name, email, role [values: EMPLOYEE|MANAGER|ADMIN|HR|MARKETING|C_LEVEL], "
         "department_id, manager_id, job_title, employment_type [values: FULL_TIME|PART_TIME|CONTRACT], "
-        "status [values: ACTIVE|INACTIVE|TERMINATED], joining_date)"
+        "status [values: ACTIVE|INACTIVE|TERMINATED], joining_date, current_salary_usd)"
     ),
     "departments": "departments(id, name, description, head_id)",
     "projects": "projects(id, name, description, status [values: PLANNING|ONGOING|COMPLETED|ON_HOLD], start_date, end_date)",
@@ -58,9 +58,10 @@ Access rules for the current user:
 Rules you MUST follow:
 1. Generate only a single SELECT statement. No subqueries that mutate data.
 2. Never reference: hashed_password, bank_account_number, bank_account_name, bank_branch,
-   bank_ifsc, pan_number, pan_name, pan_dob, date_of_birth, current_salary_usd,
+   bank_ifsc, pan_number, pan_name, pan_dob, date_of_birth,
    profile_photo_path, profile_photo_mime.
 3. Always apply the access filter WHERE clauses described in the access rules.
+   For current_salary_usd: only include it when access rules explicitly permit salary access.
 4. Return ONLY the SQL query — no explanation, no markdown fences, no semicolon at the end.
 5. If the question cannot be answered safely, respond with exactly: CANNOT_ANSWER"""
 
@@ -73,27 +74,42 @@ class SQLResult(TypedDict):
 
 
 def _build_access_rules(user: Employee, db: Session) -> str:
-    if user.role == EmployeeRole.ADMIN:
-        return "Admin role: full read access to all allowed tables."
+    if user.role in (EmployeeRole.ADMIN, EmployeeRole.HR, EmployeeRole.C_LEVEL):
+        label = user.role.value.title()
+        return (
+            f"{label} role: full read access to all allowed tables and all employees' data, "
+            f"including current_salary_usd for all employees."
+        )
 
     if user.role == EmployeeRole.MANAGER:
-        # Get direct reports
         from app.models.employee import Employee as Emp
         reports = db.query(Emp.id).filter(Emp.manager_id == user.id).all()
         report_ids = [r.id for r in reports]
         team_ids = [user.id] + report_ids
+        id_list = tuple(team_ids) if len(team_ids) > 1 else f"({team_ids[0]})"
         return (
             f"Manager role (employee_id={user.id}). "
-            f"For employee-specific data, restrict to employee_id IN {tuple(team_ids) if len(team_ids) > 1 else f'({team_ids[0]})'} "
+            f"For employee-specific data, restrict to employee_id IN {id_list} "
             f"or created_by_id IN same set. "
+            f"current_salary_usd may be queried but only for employees in that set. "
             f"For project/department catalog queries, no filter needed."
         )
 
-    # EMPLOYEE — own data only
+    if user.role == EmployeeRole.MARKETING:
+        return (
+            f"Marketing role (employee_id={user.id}). "
+            f"For employee-specific data (leave_requests, leave_balances, tickets, employee_projects, employee_skills, employees), "
+            f"always filter by employee_id = {user.id} or created_by_id = {user.id}. "
+            f"current_salary_usd may be queried only for employee_id = {user.id} (own record). "
+            f"For catalog queries (projects, departments, skills — read-only lists), no filter needed."
+        )
+
+    # EMPLOYEE — own data only, no salary access
     return (
         f"Employee role (employee_id={user.id}). "
-        f"For employee-specific data (leave_requests, leave_balances, tickets, employee_projects, employee_skills), "
+        f"For employee-specific data (leave_requests, leave_balances, tickets, employee_projects, employee_skills, employees), "
         f"always filter by employee_id = {user.id} or created_by_id = {user.id}. "
+        f"current_salary_usd may be queried only for employee_id = {user.id} (own record). "
         f"For catalog queries (projects, departments, skills — read-only lists), no filter needed."
     )
 

@@ -15,7 +15,6 @@ _FORBIDDEN_COLUMNS = frozenset({
     "pan_name",
     "pan_dob",
     "date_of_birth",
-    "current_salary_usd",
     "profile_photo_path",
     "profile_photo_mime",
 })

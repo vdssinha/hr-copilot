@@ -9,6 +9,9 @@ class EmployeeRole(str, enum.Enum):
     EMPLOYEE = "EMPLOYEE"
     MANAGER = "MANAGER"
     ADMIN = "ADMIN"
+    HR = "HR"
+    MARKETING = "MARKETING"
+    C_LEVEL = "C_LEVEL"
 
 
 class EmploymentType(str, enum.Enum):

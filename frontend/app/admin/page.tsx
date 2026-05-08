@@ -9,7 +9,7 @@ import { getToken, getUser, clearAuth } from "@/lib/auth";
 type Tab = "users" | "documents" | "access";
 
 const POLICY_CATEGORIES = ["LEAVE", "ATTENDANCE", "CODE_OF_CONDUCT", "BENEFITS", "COMPENSATION", "IT", "GENERAL"];
-const ROLES = ["EMPLOYEE", "MANAGER", "ADMIN"];
+const ROLES = ["EMPLOYEE", "MANAGER", "ADMIN", "HR", "MARKETING", "C_LEVEL"];
 const EMPLOYMENT_TYPES = ["FULL_TIME", "PART_TIME", "CONTRACT"];
 
 // ── tiny helpers ──────────────────────────────────────────────────────────────
@@ -19,6 +19,9 @@ function Badge({ value, type }: { value: string; type: "role" | "category" }) {
     ADMIN: "bg-red-100 text-red-700",
     MANAGER: "bg-blue-100 text-blue-700",
     EMPLOYEE: "bg-green-100 text-green-700",
+    HR: "bg-violet-100 text-violet-700",
+    MARKETING: "bg-pink-100 text-pink-700",
+    C_LEVEL: "bg-yellow-100 text-yellow-800",
   };
   const catColors: Record<string, string> = {
     LEAVE: "bg-amber-100 text-amber-700",
