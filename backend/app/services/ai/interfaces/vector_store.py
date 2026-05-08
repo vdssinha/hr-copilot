@@ -1,6 +1,6 @@
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
-from typing import List, Tuple
+from typing import Dict, List, Optional, Tuple
 
 
 @dataclass
@@ -15,8 +15,16 @@ class BaseVectorStore(ABC):
 
     @abstractmethod
     def similarity_search(
-        self, query_embedding: List[float], k: int = 5
+        self,
+        query_embedding: List[float],
+        k: int = 5,
+        where: Optional[Dict] = None,
     ) -> List[Tuple[Document, float]]: ...
+
+    @abstractmethod
+    def delete_where(self, where: Dict) -> None:
+        """Delete all documents matching the metadata filter."""
+        ...
 
     @abstractmethod
     def count(self) -> int: ...

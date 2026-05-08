@@ -27,7 +27,7 @@ def chat_policy(
     db: Session = Depends(get_db),
 ):
     try:
-        result = answer_policy_question(db, payload.message)
+        result = answer_policy_question(db, payload.message, user_role=current_user.role)
         log_ai_interaction(
             db, current_user, payload.message,
             intent=AIIntent.POLICY_QA,
@@ -172,7 +172,7 @@ def _stream_router(
         if intent == "POLICY_QA":
             yield _ndjson("status", {"message": "Searching HR policies…"})
             from app.services.ai.policy_rag import answer_policy_question
-            result = answer_policy_question(db, message)
+            result = answer_policy_question(db, message, user_role=user.role)
             yield _ndjson("result", {"route": route, "result": dict(result)})
 
         elif intent == "SQL_QUERY":

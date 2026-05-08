@@ -4,7 +4,9 @@ from datetime import datetime
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 from sqlalchemy.orm import Session
 
+from app.models.employee import EmployeeRole
 from app.models.hr_policy import HRPolicy
+from app.models.role_category_access import RoleCategoryAccess
 from app.services.ai import factory as _factory
 from app.services.ai.interfaces.vector_store import Document
 
@@ -92,16 +94,44 @@ def _needs_ingestion(db: Session) -> bool:
     return unembedded > 0
 
 
-def answer_policy_question(db: Session, question: str) -> PolicyAnswer:
-    """Retrieve relevant policy chunks and generate a grounded answer."""
+def _get_accessible_categories(db: Session, user_role: EmployeeRole) -> List[str]:
+    return [
+        row.category
+        for row in db.query(RoleCategoryAccess)
+        .filter(RoleCategoryAccess.role == user_role.value)
+        .all()
+    ]
+
+
+def answer_policy_question(
+    db: Session,
+    question: str,
+    user_role: Optional[EmployeeRole] = None,
+) -> PolicyAnswer:
+    """Retrieve relevant policy chunks and generate a grounded answer.
+
+    When user_role is provided, only chunks from categories the role can access
+    are returned — enforced at the vector-store query level.
+    """
     if _needs_ingestion(db):
         ingest_policies(db)
+
+    if user_role is not None:
+        accessible = _get_accessible_categories(db, user_role)
+        if not accessible:
+            return PolicyAnswer(
+                answer="You do not have access to any HR policy categories.",
+                sources=[],
+            )
+        where = {"category": {"$in": accessible}}
+    else:
+        where = None
 
     embedder = _factory.get_embedder()
     store = _factory.get_vector_store("hr_policies")
 
     query_embedding = embedder.embed_query(question)
-    results = store.similarity_search(query_embedding, k=_RETRIEVAL_K)
+    results = store.similarity_search(query_embedding, k=_RETRIEVAL_K, where=where)
 
     # Filter by similarity threshold and deduplicate sources
     relevant = [(doc, dist) for doc, dist in results if dist <= _SIMILARITY_THRESHOLD]

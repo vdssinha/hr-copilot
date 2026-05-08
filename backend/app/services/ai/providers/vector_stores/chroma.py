@@ -1,4 +1,4 @@
-from typing import List, Tuple
+from typing import Dict, List, Optional, Tuple
 import chromadb
 from app.core.config import settings
 from app.services.ai.interfaces.vector_store import BaseVectorStore, Document
@@ -23,27 +23,39 @@ class ChromaVectorStore(BaseVectorStore):
         )
 
     def similarity_search(
-        self, query_embedding: List[float], k: int = 5
+        self,
+        query_embedding: List[float],
+        k: int = 5,
+        where: Optional[Dict] = None,
     ) -> List[Tuple[Document, float]]:
-        results = self._collection.query(
-            query_embeddings=[query_embedding],
-            n_results=min(k, self._collection.count() or 1),
-            include=["documents", "metadatas", "distances"],
-        )
-        docs_out = []
-        for content, meta, dist in zip(
-            results["documents"][0],
-            results["metadatas"][0],
-            results["distances"][0],
-        ):
-            docs_out.append((Document(content=content, metadata=meta), dist))
-        return docs_out
+        total = self._collection.count()
+        if total == 0:
+            return []
+        kwargs: Dict = {
+            "query_embeddings": [query_embedding],
+            "n_results": min(k, total),
+            "include": ["documents", "metadatas", "distances"],
+        }
+        if where:
+            kwargs["where"] = where
+        results = self._collection.query(**kwargs)
+        return [
+            (Document(content=content, metadata=meta), dist)
+            for content, meta, dist in zip(
+                results["documents"][0],
+                results["metadatas"][0],
+                results["distances"][0],
+            )
+        ]
+
+    def delete_where(self, where: Dict) -> None:
+        """Delete all documents whose metadata matches the filter."""
+        self._collection.delete(where=where)
 
     def count(self) -> int:
         return self._collection.count()
 
     def clear(self) -> None:
-        self._collection.delete(where={"$ne": {"_id": ""}})
         name = self._collection.name
         self._client.delete_collection(name)
         self._collection = self._client.get_or_create_collection(
