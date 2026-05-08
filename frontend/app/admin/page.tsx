@@ -146,7 +146,7 @@ export default function AdminPage() {
         setNewUser({ employee_code: "", name: "", email: "", password: "", role: "EMPLOYEE", employment_type: "FULL_TIME", job_title: "" });
         showToast("User created", true);
       } else {
-        showToast((res.data as any)?.detail ?? "Failed to create user", false);
+        showToast((res.data as { detail?: string })?.detail ?? "Failed to create user", false);
       }
     } finally {
       setCreating(false);
@@ -159,15 +159,15 @@ export default function AdminPage() {
     try {
       const res = await admin.updateUser(token, editUserId, {
         name: editUserFields.name,
-        role: editUserFields.role as any,
-        status: editUserFields.status as any,
+        role: editUserFields.role as AdminUser["role"],
+        status: editUserFields.status as AdminUser["status"],
       });
       if (res.status === 200) {
         setUsers(prev => prev.map(u => u.id === editUserId ? res.data : u));
         setEditUserId(null);
         showToast("User updated", true);
       } else {
-        showToast((res.data as any)?.detail ?? "Update failed", false);
+        showToast((res.data as { detail?: string })?.detail ?? "Update failed", false);
       }
     } finally {
       setSavingUser(false);
@@ -202,7 +202,7 @@ export default function AdminPage() {
         const p = await admin.listPolicies(token);
         if (p.status === 200) setPolicies(p.data);
       } else {
-        showToast((res.data as any)?.detail ?? "Upload failed", false);
+        showToast((res.data as { detail?: string })?.detail ?? "Upload failed", false);
       }
     } finally {
       setUploading(false);
@@ -338,7 +338,7 @@ export default function AdminPage() {
                     <div key={f.key}>
                       <label className="block text-xs font-medium text-gray-600 mb-1">{f.label}</label>
                       <input type={f.type} placeholder={f.placeholder} required={f.key !== "job_title"}
-                        value={(newUser as any)[f.key]}
+                        value={(newUser as Record<string, string>)[f.key]}
                         onChange={e => setNewUser(u => ({ ...u, [f.key]: e.target.value }))}
                         className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/30" />
                     </div>
