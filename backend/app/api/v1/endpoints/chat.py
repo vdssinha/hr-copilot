@@ -119,7 +119,12 @@ def chat_hr_data(
 ):
     """Query employee HR data. Restricted to MANAGER and ADMIN roles."""
     try:
-        result = query_hr_data(payload.message, current_user.role)
+        result = query_hr_data(
+            payload.message,
+            current_user.role,
+            employee_code=current_user.employee_code,
+            employee_name=current_user.name,
+        )
         log_ai_interaction(
             db, current_user, payload.message,
             intent=AIIntent.SQL_QUERY,
