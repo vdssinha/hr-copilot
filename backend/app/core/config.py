@@ -14,6 +14,7 @@ class Settings(BaseSettings):
     # API keys
     ANTHROPIC_API_KEY: str = ""
     OPENAI_API_KEY: str = ""
+    VOYAGE_API_KEY: str = ""  # falls back to ANTHROPIC_API_KEY if empty
 
     # Database
     DATABASE_URL: str = "sqlite:///./cbnest.db"

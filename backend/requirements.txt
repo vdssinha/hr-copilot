@@ -25,6 +25,8 @@ langchain-text-splitters==0.3.3
 # Optional: LangGraph for bonus orchestration
 langgraph==0.2.56
 
+voyageai==0.3.2
+
 # Utilities
 python-dotenv==1.0.1
 httpx==0.28.1
