@@ -21,4 +21,20 @@ class OpenAIProvider(BaseLLMProvider):
             ],
             max_tokens=kwargs.get("max_tokens", 1024),
         )
-        return resp.choices[0].message.content
+        msg = resp.choices[0].message
+        content = msg.content or ""
+        # Some local thinking models (e.g. Gemma) emit chain-of-thought in
+        # reasoning_content and produce empty content when token budget is tight.
+        if not content.strip():
+            reasoning = getattr(msg, "reasoning_content", None) or ""
+            if reasoning.strip():
+                # Extract last "Draft N:" line (various bullet formats).
+                import re
+                drafts = re.findall(r"[*\-]?\s*Draft \d+[:\*]+\s*(.+)", reasoning)
+                if drafts:
+                    content = drafts[-1].strip()
+                else:
+                    # Fall back to the last non-empty line of reasoning.
+                    lines = [l.strip() for l in reasoning.splitlines() if l.strip()]
+                    content = lines[-1] if lines else ""
+        return content

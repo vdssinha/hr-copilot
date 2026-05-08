@@ -51,7 +51,12 @@ class ActionResult(TypedDict):
 
 def _parse_llm_json(raw: str) -> dict:
     raw = raw.strip()
+    # Strip markdown fences
     raw = re.sub(r"```(?:json)?", "", raw, flags=re.IGNORECASE).strip("` \n")
+    # If there's still extra text, extract the first {...} block
+    match = re.search(r"\{.*\}", raw, re.DOTALL)
+    if match:
+        raw = match.group(0)
     return json.loads(raw)
 
 
@@ -75,7 +80,7 @@ def _summarize_result(llm, action: str, message: str, result: dict) -> str:
         "Write a clear, friendly 1-2 sentence confirmation of what was done. "
         "Do not mention JSON, IDs, or technical details unless directly relevant."
     )
-    return llm.generate(prompt, system="Summarize HR action results clearly.", max_tokens=200)
+    return llm.generate(prompt, system="Summarize HR action results clearly.", max_tokens=500)
 
 
 def run_action(db: Session, user: Employee, message: str) -> ActionResult:
@@ -83,7 +88,7 @@ def run_action(db: Session, user: Employee, message: str) -> ActionResult:
 
     # Step 1: Extract intent + params
     prompt = _build_extract_prompt(message, user)
-    raw = llm.generate(prompt, system=_EXTRACT_SYSTEM, max_tokens=512)
+    raw = llm.generate(prompt, system=_EXTRACT_SYSTEM, max_tokens=1024)
 
     try:
         parsed = _parse_llm_json(raw)

@@ -22,18 +22,20 @@ _ALLOWED_TABLES = [
 # Schema description with sensitive columns pre-excluded
 _TABLE_SCHEMAS = {
     "employees": (
-        "employees(id, employee_code, name, email, role, department_id, manager_id, "
-        "job_title, employment_type, status, joining_date)"
+        "employees(id, employee_code, name, email, role [values: EMPLOYEE|MANAGER|ADMIN], "
+        "department_id, manager_id, job_title, employment_type [values: FULL_TIME|PART_TIME|CONTRACT], "
+        "status [values: ACTIVE|INACTIVE|TERMINATED], joining_date)"
     ),
     "departments": "departments(id, name, description, head_id)",
-    "projects": "projects(id, name, description, status, start_date, end_date)",
+    "projects": "projects(id, name, description, status [values: PLANNING|ONGOING|COMPLETED|ON_HOLD], start_date, end_date)",
     "employee_projects": "employee_projects(id, employee_id, project_id, role, assigned_at, is_active)",
     "skills": "skills(id, name, category)",
     "employee_skills": "employee_skills(id, employee_id, skill_id, proficiency)",
     "job_history": "job_history(id, employee_id, job_title, department_id, start_date, end_date, reason_for_change)",
     "leave_requests": (
-        "leave_requests(id, employee_id, leave_type, start_date, end_date, "
-        "is_half_day, half_day_period, reason, status, approved_by_id, approved_at, created_at)"
+        "leave_requests(id, employee_id, leave_type [values: CASUAL|SICK|ANNUAL|UNPAID], "
+        "start_date, end_date, is_half_day, half_day_period [values: MORNING|AFTERNOON], "
+        "reason, status [values: PENDING|APPROVED|REJECTED|CANCELLED], approved_by_id, approved_at, created_at)"
     ),
     "leave_balances": (
         "leave_balances(id, employee_id, year, casual_leave_total, casual_leave_used, "

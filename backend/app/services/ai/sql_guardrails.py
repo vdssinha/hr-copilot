@@ -55,6 +55,10 @@ def validate_sql(sql: str) -> str:
     # Check forbidden columns
     _check_forbidden_columns(sql)
 
+    # Reject unbalanced parentheses (catches truncated model output)
+    if sql.count("(") != sql.count(")"):
+        raise SQLGuardError("Generated SQL has unbalanced parentheses. Please rephrase your question.")
+
     # Inject LIMIT if missing
     sql = _enforce_row_limit(sql)
 
