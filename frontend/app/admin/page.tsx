@@ -464,7 +464,7 @@ export default function AdminPage() {
                       <td className="px-5 py-3">
                         <select value={editUserFields.status} onChange={e => setEditUserFields(f => ({ ...f, status: e.target.value }))}
                           className="px-2 py-1 text-sm border border-gray-300 rounded-lg bg-white">
-                          {["ACTIVE", "INACTIVE", "TERMINATED"].map(s => <option key={s} value={s}>{s}</option>)}
+                          {["ACTIVE", "INACTIVE", "NOTICE", "TERMINATED"].map(s => <option key={s} value={s}>{s}</option>)}
                         </select>
                       </td>
                       <td className="px-5 py-3">
@@ -490,7 +490,14 @@ export default function AdminPage() {
                       <td className="px-5 py-3.5 font-medium text-gray-800">{u.name}</td>
                       <td className="px-5 py-3.5 text-gray-500 text-xs">{u.email}</td>
                       <td className="px-5 py-3.5"><Badge value={u.role} type="role" /></td>
-                      <td className="px-5 py-3.5 text-xs text-gray-500">{u.status}</td>
+                      <td className="px-5 py-3.5">
+                        <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${
+                          u.status === "ACTIVE" ? "bg-green-100 text-green-700" :
+                          u.status === "NOTICE" ? "bg-amber-100 text-amber-700" :
+                          u.status === "INACTIVE" ? "bg-gray-100 text-gray-600" :
+                          "bg-red-100 text-red-700"
+                        }`}>{u.status}</span>
+                      </td>
                       <td className="px-5 py-3.5">
                         {u.policy_group
                           ? <span className="text-xs px-2 py-0.5 rounded-full font-medium bg-indigo-100 text-indigo-700">{u.policy_group.replace(/_/g, " ")}</span>

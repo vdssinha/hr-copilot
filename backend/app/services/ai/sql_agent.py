@@ -24,7 +24,7 @@ _TABLE_SCHEMAS = {
     "employees": (
         "employees(id, employee_code, name, email, role [values: EMPLOYEE|MANAGER|ADMIN|HR|MARKETING|C_LEVEL], "
         "department_id, manager_id, job_title, employment_type [values: FULL_TIME|PART_TIME|CONTRACT], "
-        "status [values: ACTIVE|INACTIVE|TERMINATED], joining_date, current_salary_usd)"
+        "status [values: ACTIVE|INACTIVE|NOTICE|TERMINATED], joining_date, current_salary_usd)"
     ),
     "departments": "departments(id, name, description, head_id)",
     "projects": "projects(id, name, description, status [values: PLANNING|ONGOING|COMPLETED|ON_HOLD], start_date, end_date)",

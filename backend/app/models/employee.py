@@ -23,6 +23,7 @@ class EmploymentType(str, enum.Enum):
 class EmployeeStatus(str, enum.Enum):
     ACTIVE = "ACTIVE"
     INACTIVE = "INACTIVE"
+    NOTICE = "NOTICE"
     TERMINATED = "TERMINATED"
 
 
