@@ -5,7 +5,7 @@ from langchain_text_splitters import RecursiveCharacterTextSplitter
 from sqlalchemy.orm import Session
 
 from app.models.hr_policy import HRPolicy
-from app.services.ai.factory import get_embedder, get_vector_store, get_llm_provider
+from app.services.ai import factory as _factory
 from app.services.ai.interfaces.vector_store import Document
 
 _CHUNK_SIZE = 800
@@ -44,8 +44,8 @@ def ingest_policies(db: Session) -> int:
         chunk_overlap=_CHUNK_OVERLAP,
         separators=["\n## ", "\n### ", "\n\n", "\n", " "],
     )
-    embedder = get_embedder()
-    store = get_vector_store("hr_policies")
+    embedder = _factory.get_embedder()
+    store = _factory.get_vector_store("hr_policies")
 
     documents: List[Document] = []
     for policy in policies:
@@ -82,7 +82,7 @@ def ingest_policies(db: Session) -> int:
 
 
 def _needs_ingestion(db: Session) -> bool:
-    store = get_vector_store("hr_policies")
+    store = _factory.get_vector_store("hr_policies")
     if store.count() > 0:
         return False
     unembedded = db.query(HRPolicy).filter(
@@ -97,8 +97,8 @@ def answer_policy_question(db: Session, question: str) -> PolicyAnswer:
     if _needs_ingestion(db):
         ingest_policies(db)
 
-    embedder = get_embedder()
-    store = get_vector_store("hr_policies")
+    embedder = _factory.get_embedder()
+    store = _factory.get_vector_store("hr_policies")
 
     query_embedding = embedder.embed_query(question)
     results = store.similarity_search(query_embedding, k=_RETRIEVAL_K)
@@ -130,7 +130,7 @@ def answer_policy_question(db: Session, question: str) -> PolicyAnswer:
     context_block = "\n\n---\n\n".join(context_parts)
     prompt = f"Policy excerpts:\n\n{context_block}\n\nQuestion: {question}"
 
-    llm = get_llm_provider()
+    llm = _factory.get_llm_provider()
     answer = llm.generate(prompt, system=_SYSTEM_PROMPT, max_tokens=1024)
 
     return PolicyAnswer(answer=answer, sources=sources)

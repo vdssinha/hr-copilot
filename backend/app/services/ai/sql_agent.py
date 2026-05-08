@@ -9,7 +9,7 @@ from sqlalchemy import text
 from sqlalchemy.orm import Session
 
 from app.models.employee import Employee, EmployeeRole
-from app.services.ai.factory import get_llm_provider
+from app.services.ai import factory as _factory
 from app.services.ai.sql_guardrails import validate_sql, scrub_forbidden_columns, SQLGuardError
 
 # Tables the SQL agent may query — sorted by safety
@@ -118,7 +118,7 @@ def run_sql_query(db: Session, user: Employee, question: str) -> SQLResult:
     access_rules = _build_access_rules(user, db)
     system = _SYSTEM_TEMPLATE.format(schema=schema_block, access_rules=access_rules)
 
-    llm = get_llm_provider()
+    llm = _factory.get_llm_provider()
     raw_sql = llm.generate(question, system=system, max_tokens=512)
     sql = _extract_sql(raw_sql)
 

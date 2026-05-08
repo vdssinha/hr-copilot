@@ -16,7 +16,7 @@ from app.services.ai.api_tools import (
     create_ticket, assign_ticket,
     create_announcement, assign_employee_to_project,
 )
-from app.services.ai.factory import get_llm_provider
+from app.services.ai import factory as _factory
 from app.services.ai.permissions import can_perform, allowed_actions
 
 _EXTRACT_SYSTEM = """You are an HR task intent extractor. Given a user message and their allowed actions,
@@ -84,7 +84,7 @@ def _summarize_result(llm, action: str, message: str, result: dict) -> str:
 
 
 def run_action(db: Session, user: Employee, message: str) -> ActionResult:
-    llm = get_llm_provider()
+    llm = _factory.get_llm_provider()
 
     # Step 1: Extract intent + params
     prompt = _build_extract_prompt(message, user)

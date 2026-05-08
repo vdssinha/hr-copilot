@@ -8,7 +8,7 @@ from typing import Literal, TypedDict
 from sqlalchemy.orm import Session
 
 from app.models.employee import Employee
-from app.services.ai.factory import get_llm_provider
+from app.services.ai import factory as _factory
 
 Intent = Literal["POLICY_QA", "SQL_QUERY", "HR_ACTION", "UNKNOWN"]
 
@@ -29,7 +29,7 @@ class RouteResult(TypedDict):
 
 
 def classify_intent(message: str) -> RouteResult:
-    llm = get_llm_provider()
+    llm = _factory.get_llm_provider()
     raw = llm.generate(message, system=_CLASSIFY_SYSTEM, max_tokens=128)
 
     raw = raw.strip()
