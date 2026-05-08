@@ -1,7 +1,9 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { login, admin, AdminUser, AdminRole, AdminCategory, AdminPolicy } from "@/lib/api";
+import { useRouter } from "next/navigation";
+import { admin, AdminUser, AdminRole, AdminCategory, AdminPolicy } from "@/lib/api";
+import { getToken, getUser, clearAuth } from "@/lib/auth";
 
 type Tab = "users" | "documents" | "access";
 
@@ -41,11 +43,9 @@ function Toast({ msg, ok }: { msg: string; ok: boolean }) {
 // ── main component ────────────────────────────────────────────────────────────
 
 export default function AdminPage() {
+  const router = useRouter();
   const [token, setToken] = useState("");
   const [myRole, setMyRole] = useState("");
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [loginError, setLoginError] = useState("");
 
   // tab + loading
   const [tab, setTab] = useState<Tab>("users");
@@ -89,26 +89,16 @@ export default function AdminPage() {
     setTimeout(() => setToast(null), 3000);
   }
 
-  // ── login ──────────────────────────────────────────────────────────────────
+  // ── auth gate ──────────────────────────────────────────────────────────────
 
-  async function handleLogin(e: React.FormEvent) {
-    e.preventDefault();
-    try {
-      const resp = await login(email, password);
-      if (resp.success) {
-        if (resp.data.role !== "ADMIN") {
-          setLoginError("Admin access only.");
-          return;
-        }
-        setToken(resp.data.access_token);
-        setMyRole(resp.data.role);
-      } else {
-        setLoginError(resp.error ?? "Login failed");
-      }
-    } catch {
-      setLoginError("Network error.");
-    }
-  }
+  useEffect(() => {
+    const t = getToken();
+    const u = getUser();
+    if (!t || !u) { router.replace("/login"); return; }
+    if (u.role !== "ADMIN") { router.replace("/ai-copilot"); return; }
+    setToken(t);
+    setMyRole(u.role);
+  }, [router]);
 
   // ── data loading ───────────────────────────────────────────────────────────
 
@@ -277,28 +267,7 @@ export default function AdminPage() {
     setter(list.includes(item) ? list.filter(x => x !== item) : [...list, item]);
   }
 
-  // ── login gate ─────────────────────────────────────────────────────────────
-
-  if (!token) {
-    return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-8 w-full max-w-sm">
-          <h1 className="text-xl font-bold text-gray-900 mb-1">Admin Portal</h1>
-          <p className="text-sm text-gray-500 mb-6">Sign in with an Admin account</p>
-          <form onSubmit={handleLogin} className="space-y-4">
-            <input className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-              type="email" placeholder="Email" value={email} onChange={e => setEmail(e.target.value)} required />
-            <input className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-              type="password" placeholder="Password" value={password} onChange={e => setPassword(e.target.value)} required />
-            {loginError && <p className="text-xs text-red-500">{loginError}</p>}
-            <button type="submit" className="w-full bg-blue-600 hover:bg-blue-700 text-white rounded-lg py-2 text-sm font-medium transition">
-              Sign In
-            </button>
-          </form>
-        </div>
-      </div>
-    );
-  }
+  if (!token) return null; // redirecting
 
   // ── main UI ────────────────────────────────────────────────────────────────
 
@@ -307,22 +276,31 @@ export default function AdminPage() {
       {toast && <Toast msg={toast.msg} ok={toast.ok} />}
 
       {/* Header */}
-      <header className="bg-white border-b border-gray-200 px-6 py-4 flex items-center justify-between">
-        <h1 className="font-bold text-gray-900">NovaWorks Admin Portal</h1>
-        <div className="flex items-center gap-4">
+      <header className="bg-white border-b border-slate-200 px-6 py-4 flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-brand">
+            <span className="text-xs font-bold text-white">A</span>
+          </div>
+          <div>
+            <h1 className="text-sm font-bold text-slate-900">NovaWorks Admin Portal</h1>
+            <p className="text-xs text-slate-500">User management, policies &amp; access control</p>
+          </div>
+        </div>
+        <div className="flex items-center gap-3">
           <Badge value={myRole} type="role" />
-          <a href="/ai-copilot" className="text-xs text-blue-600 hover:underline">← Copilot</a>
+          <a href="/ai-copilot" className="text-xs text-brand hover:text-brand-dark font-medium">← Copilot</a>
+          <button onClick={() => { clearAuth(); router.replace("/login"); }} className="text-xs text-slate-400 hover:text-slate-600">Sign out</button>
         </div>
       </header>
 
       {/* Tabs */}
-      <div className="bg-white border-b border-gray-200 px-6">
+      <div className="bg-white border-b border-slate-200 px-6">
         <div className="flex gap-1">
           {(["users", "documents", "access"] as Tab[]).map(t => (
             <button key={t} onClick={() => setTab(t)}
-              className={`px-4 py-3 text-sm font-medium capitalize border-b-2 transition ${tab === t ? "border-blue-600 text-blue-600" : "border-transparent text-gray-500 hover:text-gray-700"}`}>
+              className={`px-4 py-3 text-sm font-medium capitalize border-b-2 transition ${tab === t ? "border-brand text-brand" : "border-transparent text-slate-500 hover:text-slate-700"}`}>
               {t === "access" ? "Access Control" : t}
-              {t === "documents" && <span className="ml-1.5 text-xs bg-gray-100 text-gray-500 rounded-full px-1.5 py-0.5">{policies.length}</span>}
+              {t === "documents" && <span className="ml-1.5 text-xs bg-slate-100 text-slate-500 rounded-full px-1.5 py-0.5">{policies.length}</span>}
             </button>
           ))}
         </div>
