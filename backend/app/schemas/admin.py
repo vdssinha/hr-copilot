@@ -19,6 +19,7 @@ class AdminUserOut(BaseModel):
     employment_type: EmploymentType
     status: EmployeeStatus
     joining_date: Optional[date] = None
+    policy_group: Optional[str] = None
 
     model_config = {"from_attributes": True}
 
@@ -42,6 +43,7 @@ class AdminUserUpdate(BaseModel):
     job_title: Optional[str] = None
     department_id: Optional[int] = None
     status: Optional[EmployeeStatus] = None
+    policy_group: Optional[str] = None
 
 
 # ── Roles ─────────────────────────────────────────────────────────────────────
@@ -64,6 +66,22 @@ class AdminCategoryOut(BaseModel):
 
 class AdminCategoryUpdate(BaseModel):
     accessible_by_roles: List[str]
+
+
+# ── Policy Groups ─────────────────────────────────────────────────────────────
+
+class AdminPolicyGroupOut(BaseModel):
+    name: str
+    accessible_categories: List[str]
+
+
+class AdminPolicyGroupCreate(BaseModel):
+    name: str
+    accessible_categories: List[str] = []
+
+
+class AdminPolicyGroupUpdate(BaseModel):
+    accessible_categories: List[str]
 
 
 # ── Policies ──────────────────────────────────────────────────────────────────

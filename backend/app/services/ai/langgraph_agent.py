@@ -48,8 +48,13 @@ def node_classify(state: AgentState) -> dict:
 
 def node_policy_rag(state: AgentState) -> dict:
     from app.services.ai.policy_rag import answer_policy_question
+    user = state["user"]
     try:
-        result = answer_policy_question(state["db"], state["message"])
+        result = answer_policy_question(
+            state["db"], state["message"],
+            user_role=user.role,
+            policy_group=user.policy_group,
+        )
         return {"result": dict(result)}
     except Exception as e:
         return {"error": str(e), "result": {"answer": "Policy lookup failed.", "sources": []}}

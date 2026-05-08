@@ -55,7 +55,7 @@ def route_and_answer(db: Session, user: Employee, message: str) -> dict:
 
     if route["intent"] == "POLICY_QA":
         from app.services.ai.policy_rag import answer_policy_question
-        result = answer_policy_question(db, message)
+        result = answer_policy_question(db, message, user_role=user.role, policy_group=user.policy_group)
         return {"route": route, "result": result}
 
     if route["intent"] == "SQL_QUERY":

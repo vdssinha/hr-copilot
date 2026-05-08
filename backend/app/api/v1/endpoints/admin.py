@@ -13,10 +13,14 @@ from app.db.session import get_db
 from app.models.employee import Employee, EmployeeRole, EmploymentType, EmployeeStatus
 from app.models.hr_policy import HRPolicy, PolicyCategory
 from app.models.role_category_access import RoleCategoryAccess
+from app.models.policy_group import PolicyGroup, GroupCategoryAccess
 from app.schemas.admin import (
     AdminCategoryOut,
     AdminCategoryUpdate,
     AdminPolicyOut,
+    AdminPolicyGroupCreate,
+    AdminPolicyGroupOut,
+    AdminPolicyGroupUpdate,
     AdminRoleOut,
     AdminRoleUpdate,
     AdminUserCreate,
@@ -105,6 +109,12 @@ def update_user(
         employee.department_id = payload.department_id
     if payload.status is not None:
         employee.status = payload.status
+    if "policy_group" in payload.model_fields_set:
+        if payload.policy_group is not None:
+            group = db.query(PolicyGroup).filter(PolicyGroup.name == payload.policy_group).first()
+            if not group:
+                raise HTTPException(status_code=400, detail=f"Policy group '{payload.policy_group}' not found")
+        employee.policy_group = payload.policy_group
 
     db.commit()
     db.refresh(employee)
@@ -300,3 +310,79 @@ def delete_policy(
     db.commit()
 
 
+# ── Policy Groups ─────────────────────────────────────────────────────────────
+
+def _group_to_out(db: Session, group: PolicyGroup) -> AdminPolicyGroupOut:
+    cats = [r.category for r in db.query(GroupCategoryAccess).filter(GroupCategoryAccess.group_name == group.name).all()]
+    return AdminPolicyGroupOut(name=group.name, accessible_categories=sorted(cats))
+
+
+@router.get("/policy-groups", response_model=List[AdminPolicyGroupOut])
+def list_policy_groups(
+    _: Employee = Depends(_require_admin),
+    db: Session = Depends(get_db),
+):
+    groups = db.query(PolicyGroup).order_by(PolicyGroup.name).all()
+    return [_group_to_out(db, g) for g in groups]
+
+
+@router.post("/policy-groups", response_model=AdminPolicyGroupOut, status_code=status.HTTP_201_CREATED)
+def create_policy_group(
+    payload: AdminPolicyGroupCreate,
+    _: Employee = Depends(_require_admin),
+    db: Session = Depends(get_db),
+):
+    name = payload.name.strip().lower().replace(" ", "_")
+    if db.query(PolicyGroup).filter(PolicyGroup.name == name).first():
+        raise HTTPException(status_code=409, detail=f"Policy group '{name}' already exists")
+
+    valid_cats = {c.value for c in PolicyCategory}
+    invalid = [c for c in payload.accessible_categories if c not in valid_cats]
+    if invalid:
+        raise HTTPException(status_code=400, detail=f"Unknown categories: {invalid}")
+
+    group = PolicyGroup(name=name)
+    db.add(group)
+    for cat in payload.accessible_categories:
+        db.add(GroupCategoryAccess(group_name=name, category=cat))
+    db.commit()
+    db.refresh(group)
+    return _group_to_out(db, group)
+
+
+@router.patch("/policy-groups/{group_name}", response_model=AdminPolicyGroupOut)
+def update_policy_group(
+    group_name: str,
+    payload: AdminPolicyGroupUpdate,
+    _: Employee = Depends(_require_admin),
+    db: Session = Depends(get_db),
+):
+    group = db.query(PolicyGroup).filter(PolicyGroup.name == group_name).first()
+    if not group:
+        raise HTTPException(status_code=404, detail=f"Policy group '{group_name}' not found")
+
+    valid_cats = {c.value for c in PolicyCategory}
+    invalid = [c for c in payload.accessible_categories if c not in valid_cats]
+    if invalid:
+        raise HTTPException(status_code=400, detail=f"Unknown categories: {invalid}")
+
+    db.query(GroupCategoryAccess).filter(GroupCategoryAccess.group_name == group_name).delete()
+    for cat in payload.accessible_categories:
+        db.add(GroupCategoryAccess(group_name=group_name, category=cat))
+    db.commit()
+    return _group_to_out(db, group)
+
+
+@router.delete("/policy-groups/{group_name}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_policy_group(
+    group_name: str,
+    _: Employee = Depends(_require_admin),
+    db: Session = Depends(get_db),
+):
+    group = db.query(PolicyGroup).filter(PolicyGroup.name == group_name).first()
+    if not group:
+        raise HTTPException(status_code=404, detail=f"Policy group '{group_name}' not found")
+    db.query(GroupCategoryAccess).filter(GroupCategoryAccess.group_name == group_name).delete()
+    db.query(Employee).filter(Employee.policy_group == group_name).update({"policy_group": None})
+    db.delete(group)
+    db.commit()

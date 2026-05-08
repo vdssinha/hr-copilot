@@ -76,6 +76,12 @@ export interface AdminUser {
   employment_type: string;
   status: string;
   joining_date: string | null;
+  policy_group: string | null;
+}
+
+export interface AdminPolicyGroup {
+  name: string;
+  accessible_categories: string[];
 }
 
 export interface AdminRole {
@@ -109,7 +115,7 @@ export const admin = {
     role: string; job_title?: string; department_id?: number; employment_type: string;
   }) => request<AdminUser>("/admin/users", { method: "POST", body: JSON.stringify(payload) }, token),
 
-  updateUser: (token: string, id: number, payload: Partial<Pick<AdminUser, "name" | "email" | "role" | "job_title" | "status">>) =>
+  updateUser: (token: string, id: number, payload: Partial<Pick<AdminUser, "name" | "email" | "role" | "job_title" | "status" | "policy_group">>) =>
     request<AdminUser>(`/admin/users/${id}`, { method: "PATCH", body: JSON.stringify(payload) }, token),
 
   deleteUser: (token: string, id: number) =>
@@ -145,6 +151,18 @@ export const admin = {
 
   reingestPolicies: (token: string) =>
     post("/chat/policy/ingest", {}, token),
+
+  listPolicyGroups: (token: string) =>
+    request<AdminPolicyGroup[]>("/admin/policy-groups", { method: "GET" }, token),
+
+  createPolicyGroup: (token: string, name: string, accessible_categories: string[]) =>
+    request<AdminPolicyGroup>("/admin/policy-groups", { method: "POST", body: JSON.stringify({ name, accessible_categories }) }, token),
+
+  updatePolicyGroup: (token: string, name: string, accessible_categories: string[]) =>
+    request<AdminPolicyGroup>(`/admin/policy-groups/${name}`, { method: "PATCH", body: JSON.stringify({ accessible_categories }) }, token),
+
+  deletePolicyGroup: (token: string, name: string) =>
+    request<null>(`/admin/policy-groups/${name}`, { method: "DELETE" }, token),
 };
 
 export async function streamRouter(

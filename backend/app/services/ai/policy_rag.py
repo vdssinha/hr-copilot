@@ -7,6 +7,7 @@ from sqlalchemy.orm import Session
 from app.models.employee import EmployeeRole
 from app.models.hr_policy import HRPolicy
 from app.models.role_category_access import RoleCategoryAccess
+from app.models.policy_group import GroupCategoryAccess
 from app.services.ai import factory as _factory
 from app.services.ai.interfaces.vector_store import Document
 
@@ -94,7 +95,16 @@ def _needs_ingestion(db: Session) -> bool:
     return unembedded > 0
 
 
-def _get_accessible_categories(db: Session, user_role: EmployeeRole) -> List[str]:
+def _get_accessible_categories(db: Session, user_role: EmployeeRole, policy_group: Optional[str] = None) -> List[str]:
+    if policy_group:
+        cats = [
+            row.category
+            for row in db.query(GroupCategoryAccess)
+            .filter(GroupCategoryAccess.group_name == policy_group)
+            .all()
+        ]
+        if cats:
+            return cats
     return [
         row.category
         for row in db.query(RoleCategoryAccess)
@@ -107,17 +117,18 @@ def answer_policy_question(
     db: Session,
     question: str,
     user_role: Optional[EmployeeRole] = None,
+    policy_group: Optional[str] = None,
 ) -> PolicyAnswer:
     """Retrieve relevant policy chunks and generate a grounded answer.
 
-    When user_role is provided, only chunks from categories the role can access
-    are returned — enforced at the vector-store query level.
+    Access is controlled by policy_group (if set) else by user_role.
+    Both are enforced at the vector-store query level.
     """
     if _needs_ingestion(db):
         ingest_policies(db)
 
     if user_role is not None:
-        accessible = _get_accessible_categories(db, user_role)
+        accessible = _get_accessible_categories(db, user_role, policy_group)
         if not accessible:
             return PolicyAnswer(
                 answer="You do not have access to any HR policy categories.",

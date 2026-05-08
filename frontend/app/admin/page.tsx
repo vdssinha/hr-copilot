@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Trash2, Pencil } from "lucide-react";
-import { admin, AdminUser, AdminRole, AdminCategory, AdminPolicy } from "@/lib/api";
+import { admin, AdminUser, AdminRole, AdminCategory, AdminPolicy, AdminPolicyGroup } from "@/lib/api";
 import { getToken, getUser, clearAuth } from "@/lib/auth";
 
 type Tab = "users" | "documents" | "access";
@@ -66,7 +66,7 @@ export default function AdminPage() {
 
   // edit user
   const [editUserId, setEditUserId] = useState<number | null>(null);
-  const [editUserFields, setEditUserFields] = useState<{ name: string; role: string; status: string }>({ name: "", role: "", status: "" });
+  const [editUserFields, setEditUserFields] = useState<{ name: string; role: string; status: string; policy_group: string | null }>({ name: "", role: "", status: "", policy_group: null });
   const [savingUser, setSavingUser] = useState(false);
 
   // policy list filter
@@ -79,6 +79,16 @@ export default function AdminPage() {
   const [uploadFile, setUploadFile] = useState<File | null>(null);
   const [uploading, setUploading] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
+
+  // policy groups
+  const [policyGroups, setPolicyGroups] = useState<AdminPolicyGroup[]>([]);
+  const [showNewGroup, setShowNewGroup] = useState(false);
+  const [newGroupName, setNewGroupName] = useState("");
+  const [newGroupCats, setNewGroupCats] = useState<string[]>([]);
+  const [creatingGroup, setCreatingGroup] = useState(false);
+  const [editingGroup, setEditingGroup] = useState<string | null>(null);
+  const [editGroupCats, setEditGroupCats] = useState<string[]>([]);
+  const [savingGroup, setSavingGroup] = useState(false);
 
   // role / category editing
   const [editingRole, setEditingRole] = useState<string | null>(null);
@@ -114,16 +124,18 @@ export default function AdminPage() {
   async function loadAll() {
     setLoading(true);
     try {
-      const [u, r, c, p] = await Promise.all([
+      const [u, r, c, p, g] = await Promise.all([
         admin.listUsers(token),
         admin.listRoles(token),
         admin.listCategories(token),
         admin.listPolicies(token),
+        admin.listPolicyGroups(token),
       ]);
       if (u.status === 200) setUsers(u.data);
       if (r.status === 200) setRoles(r.data);
       if (c.status === 200) setCategories(c.data);
       if (p.status === 200) setPolicies(p.data);
+      if (g.status === 200) setPolicyGroups(g.data);
     } finally {
       setLoading(false);
     }
@@ -165,6 +177,7 @@ export default function AdminPage() {
         name: editUserFields.name,
         role: editUserFields.role as AdminUser["role"],
         status: editUserFields.status as AdminUser["status"],
+        policy_group: editUserFields.policy_group,
       });
       if (res.status === 200) {
         setUsers(prev => prev.map(u => u.id === editUserId ? res.data : u));
@@ -272,6 +285,56 @@ export default function AdminPage() {
     setter(list.includes(item) ? list.filter(x => x !== item) : [...list, item]);
   }
 
+  async function handleCreateGroup(e: React.FormEvent) {
+    e.preventDefault();
+    const name = newGroupName.trim();
+    if (!name) return;
+    setCreatingGroup(true);
+    try {
+      const res = await admin.createPolicyGroup(token, name, newGroupCats);
+      if (res.status === 201) {
+        setPolicyGroups(prev => [...prev, res.data]);
+        setShowNewGroup(false);
+        setNewGroupName("");
+        setNewGroupCats([]);
+        showToast(`Group "${res.data.name}" created`, true);
+      } else {
+        showToast((res.data as unknown as { detail?: string })?.detail ?? "Create failed", false);
+      }
+    } finally {
+      setCreatingGroup(false);
+    }
+  }
+
+  async function handleUpdateGroup() {
+    if (!editingGroup) return;
+    setSavingGroup(true);
+    try {
+      const res = await admin.updatePolicyGroup(token, editingGroup, editGroupCats);
+      if (res.status === 200) {
+        setPolicyGroups(prev => prev.map(g => g.name === editingGroup ? res.data : g));
+        setEditingGroup(null);
+        showToast("Group access updated", true);
+      } else {
+        showToast("Update failed", false);
+      }
+    } finally {
+      setSavingGroup(false);
+    }
+  }
+
+  async function handleDeleteGroup(name: string) {
+    if (!confirm(`Delete group "${name}"? Users assigned to this group will fall back to their system role access.`)) return;
+    const res = await admin.deletePolicyGroup(token, name);
+    if (res.status === 204) {
+      setPolicyGroups(prev => prev.filter(g => g.name !== name));
+      setUsers(prev => prev.map(u => u.policy_group === name ? { ...u, policy_group: null } : u));
+      showToast(`Group "${name}" deleted`, true);
+    } else {
+      showToast("Delete failed", false);
+    }
+  }
+
   if (!token) return null; // redirecting
 
   // ── main UI ────────────────────────────────────────────────────────────────
@@ -376,7 +439,7 @@ export default function AdminPage() {
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b border-gray-100 bg-gray-50">
-                    {["Name", "Email", "Role", "Status", ""].map(h => (
+                    {["Name", "Email", "Role", "Status", "Group", ""].map(h => (
                       <th key={h} className="text-left px-5 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">{h}</th>
                     ))}
                   </tr>
@@ -401,6 +464,13 @@ export default function AdminPage() {
                           {["ACTIVE", "INACTIVE", "TERMINATED"].map(s => <option key={s} value={s}>{s}</option>)}
                         </select>
                       </td>
+                      <td className="px-5 py-3">
+                        <select value={editUserFields.policy_group ?? ""} onChange={e => setEditUserFields(f => ({ ...f, policy_group: e.target.value || null }))}
+                          className="px-2 py-1 text-sm border border-gray-300 rounded-lg bg-white">
+                          <option value="">— system role —</option>
+                          {policyGroups.map(g => <option key={g.name} value={g.name}>{g.name.replace(/_/g, " ")}</option>)}
+                        </select>
+                      </td>
                       <td className="px-5 py-3 text-right">
                         <div className="flex gap-2 justify-end">
                           <button onClick={handleUpdateUser} disabled={savingUser}
@@ -418,9 +488,14 @@ export default function AdminPage() {
                       <td className="px-5 py-3.5 text-gray-500 text-xs">{u.email}</td>
                       <td className="px-5 py-3.5"><Badge value={u.role} type="role" /></td>
                       <td className="px-5 py-3.5 text-xs text-gray-500">{u.status}</td>
+                      <td className="px-5 py-3.5">
+                        {u.policy_group
+                          ? <span className="text-xs px-2 py-0.5 rounded-full font-medium bg-indigo-100 text-indigo-700">{u.policy_group.replace(/_/g, " ")}</span>
+                          : <span className="text-xs text-gray-400">—</span>}
+                      </td>
                       <td className="px-5 py-3.5 text-right">
                         <div className="flex gap-1 justify-end">
-                          <button onClick={() => { setEditUserId(u.id); setEditUserFields({ name: u.name, role: u.role, status: u.status }); }}
+                          <button onClick={() => { setEditUserId(u.id); setEditUserFields({ name: u.name, role: u.role, status: u.status, policy_group: u.policy_group }); }}
                             title="Edit user"
                             className="text-gray-400 hover:text-blue-600 p-1 rounded transition">
                             <Pencil className="w-4 h-4" />
@@ -668,6 +743,119 @@ export default function AdminPage() {
                         <td className="px-5 py-4 text-right">
                           <button onClick={() => { setEditingCat(c.name); setEditCatRoles([...c.accessible_by_roles]); }}
                             className="text-gray-400 hover:text-blue-600 text-xs transition">Edit</button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            {/* Policy Groups section */}
+            <div className="space-y-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h2 className="font-semibold text-gray-900">Policy Groups</h2>
+                  <p className="text-xs text-gray-400 mt-0.5">Dynamic groups — override system role category access per user</p>
+                </div>
+                <button onClick={() => setShowNewGroup(v => !v)}
+                  className="flex items-center gap-1.5 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium px-3 py-2 rounded-lg transition">
+                  {showNewGroup ? "Cancel" : "+ New Group"}
+                </button>
+              </div>
+
+              {showNewGroup && (
+                <form onSubmit={handleCreateGroup} className="bg-white border border-gray-200 rounded-xl p-5 shadow-sm space-y-4">
+                  <p className="font-medium text-gray-800 text-sm">Create Policy Group</p>
+                  <div>
+                    <label className="block text-xs font-medium text-gray-600 mb-1">Group name</label>
+                    <input type="text" placeholder="e.g. c_level" required value={newGroupName}
+                      onChange={e => setNewGroupName(e.target.value)}
+                      className="w-full max-w-xs px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/30" />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-gray-600 mb-2">Categories this group can access</label>
+                    <div className="flex flex-wrap gap-3">
+                      {POLICY_CATEGORIES.map(cat => (
+                        <label key={cat} className="flex items-center gap-1.5 cursor-pointer text-xs">
+                          <input type="checkbox" className="accent-blue-600"
+                            checked={newGroupCats.includes(cat)}
+                            onChange={() => toggleItem(newGroupCats, cat, setNewGroupCats)} />
+                          <Badge value={cat} type="category" />
+                        </label>
+                      ))}
+                    </div>
+                  </div>
+                  <div className="flex justify-end">
+                    <button type="submit" disabled={creatingGroup}
+                      className="bg-blue-600 hover:bg-blue-700 disabled:opacity-60 text-white text-sm font-medium px-4 py-2 rounded-lg transition">
+                      {creatingGroup ? "Creating…" : "Create Group"}
+                    </button>
+                  </div>
+                </form>
+              )}
+
+              <div className="bg-white border border-gray-200 rounded-xl shadow-sm overflow-hidden">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b border-gray-100 bg-gray-50">
+                      <th className="text-left px-5 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider w-44">Group</th>
+                      <th className="text-left px-5 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">Accessible Categories</th>
+                      <th className="px-5 py-3 w-24" />
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-100">
+                    {policyGroups.length === 0 ? (
+                      <tr><td colSpan={3} className="px-5 py-8 text-center text-gray-400 text-xs">No groups. Create one above to override system-role access for specific users.</td></tr>
+                    ) : policyGroups.map(g => g.name === editingGroup ? (
+                      <tr key={g.name} className="bg-blue-50/40">
+                        <td className="px-5 py-4">
+                          <span className="text-xs px-2 py-0.5 rounded-full font-medium bg-indigo-100 text-indigo-700">{g.name.replace(/_/g, " ")}</span>
+                        </td>
+                        <td className="px-5 py-4">
+                          <div className="flex flex-wrap gap-3">
+                            {POLICY_CATEGORIES.map(cat => (
+                              <label key={cat} className="flex items-center gap-1.5 cursor-pointer text-xs">
+                                <input type="checkbox" className="accent-blue-600"
+                                  checked={editGroupCats.includes(cat)}
+                                  onChange={() => toggleItem(editGroupCats, cat, setEditGroupCats)} />
+                                <Badge value={cat} type="category" />
+                              </label>
+                            ))}
+                          </div>
+                        </td>
+                        <td className="px-5 py-4 text-right">
+                          <div className="flex gap-2 justify-end">
+                            <button onClick={handleUpdateGroup} disabled={savingGroup}
+                              className="text-xs bg-blue-600 text-white px-3 py-1.5 rounded-lg disabled:opacity-60">
+                              {savingGroup ? "Saving…" : "Save"}
+                            </button>
+                            <button onClick={() => setEditingGroup(null)}
+                              className="text-xs text-gray-500 border border-gray-200 px-3 py-1.5 rounded-lg">Cancel</button>
+                          </div>
+                        </td>
+                      </tr>
+                    ) : (
+                      <tr key={g.name} className="hover:bg-gray-50 transition-colors">
+                        <td className="px-5 py-4">
+                          <span className="text-xs px-2 py-0.5 rounded-full font-medium bg-indigo-100 text-indigo-700">{g.name.replace(/_/g, " ")}</span>
+                        </td>
+                        <td className="px-5 py-4">
+                          <div className="flex flex-wrap gap-1">
+                            {g.accessible_categories.length === 0
+                              ? <span className="text-xs text-gray-400 italic">none</span>
+                              : g.accessible_categories.map(c => <Badge key={c} value={c} type="category" />)}
+                          </div>
+                        </td>
+                        <td className="px-5 py-4 text-right">
+                          <div className="flex gap-1 justify-end">
+                            <button onClick={() => { setEditingGroup(g.name); setEditGroupCats([...g.accessible_categories]); }}
+                              className="text-gray-400 hover:text-blue-600 text-xs transition">Edit</button>
+                            <button onClick={() => handleDeleteGroup(g.name)}
+                              className="text-gray-400 hover:text-red-500 p-1 rounded transition">
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          </div>
                         </td>
                       </tr>
                     ))}

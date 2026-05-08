@@ -50,6 +50,7 @@ class Employee(Base):
     pan_dob = Column(Date, nullable=True)
     profile_photo_path = Column(String(500), nullable=True)
     profile_photo_mime = Column(String(50), nullable=True)
+    policy_group = Column(String(100), nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
