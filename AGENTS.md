@@ -40,9 +40,10 @@ hrCopilot/
 
 ## Critical Invariants
 
-1. **No direct DB writes from AI agents.** All mutations go through backend APIs.
-   - Correct: Agent → `POST /api/v1/leaves/requests` → service layer → DB
-   - Wrong: Agent → `INSERT INTO leave_requests ...`
+1. **No direct DB writes from AI agents.** All mutations go through the service layer.
+   - Correct (current): Agent → `api_tools` function → service layer → DB (in-process, shared session)
+   - Correct (distributed): Agent → `POST /api/v1/leaves/requests` (httpx) → service layer → DB
+   - Wrong: Agent → `INSERT INTO leave_requests ...` (direct SQL write)
 
 2. **Forbidden SQL columns must never appear in SQL agent output:**
    `hashed_password`, `bank_account_number`, `bank_account_name`, `bank_branch`,

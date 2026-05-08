@@ -13,7 +13,7 @@ class Settings(BaseSettings):
 
     # API keys
     ANTHROPIC_API_KEY: str = ""
-    OPENAI_API_KEY: str = "lm-studio"
+    OPENAI_API_KEY: str = ""
     VOYAGE_API_KEY: str = ""  # falls back to ANTHROPIC_API_KEY if empty
     OPENAI_BASE_URL: str = ""  # override for LM Studio / any OpenAI-compatible endpoint
 

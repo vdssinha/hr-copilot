@@ -39,7 +39,7 @@ created: 2026-05-08
 
 ## Critical Boundaries
 
-- AI agents call backend APIs as external HTTP clients (httpx), not internal function calls — preserves validation, business rules, and audit trail.
+- AI agents call service layer via `api_tools.py` (in-process, shared DB session) — not raw SQL writes. Business rules and RBAC enforced inside each tool function. In a distributed deployment, replace with httpx calls to the same endpoints.
 - ChromaDB persisted locally (`CHROMA_PERSIST_DIR`) — not embedded in SQLite.
 - All AI config (provider, model, keys) sourced from env vars — zero hardcoding.
 
