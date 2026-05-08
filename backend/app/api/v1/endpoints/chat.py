@@ -7,6 +7,7 @@ from app.models.employee import Employee
 from app.models.ai_audit_log import AIIntent, ActionStatus
 from app.schemas.chat import ChatRequest
 from app.schemas.common import APIResponse
+from app.services.ai.action_agent import run_action
 from app.services.ai.audit import log_ai_interaction
 from app.services.ai.policy_rag import answer_policy_question, ingest_policies
 from app.services.ai.sql_agent import run_sql_query
@@ -54,6 +55,27 @@ def chat_sql(
         return APIResponse.ok(result)
     except Exception as e:
         log_ai_interaction(db, current_user, payload.message, AIIntent.SQL_QUERY, ActionStatus.ERROR)
+        return APIResponse.fail(str(e))
+
+
+@router.post("/actions", response_model=APIResponse)
+def chat_actions(
+    payload: ChatRequest,
+    current_user: Employee = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    try:
+        result = run_action(db, current_user, payload.message)
+        log_ai_interaction(
+            db, current_user, payload.message,
+            intent=AIIntent.HR_ACTION,
+            action_status=ActionStatus.SUCCESS if result["success"] else ActionStatus.REFUSED,
+            tool_name=result["action"],
+            records_accessed=[str(result["data"])] if result.get("data") else None,
+        )
+        return APIResponse.ok(result)
+    except Exception as e:
+        log_ai_interaction(db, current_user, payload.message, AIIntent.HR_ACTION, ActionStatus.ERROR)
         return APIResponse.fail(str(e))
 
 
