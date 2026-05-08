@@ -10,10 +10,23 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - Never include `Co-Authored-By` or any trailer lines in commit messages
 
 
-This is a greenfield project. Only `Requirement.md` exists currently.
+## Tech Stack
 
-## Tech Stack (Specified by Assignment)
+- Backend: FastAPI + SQLite + SQLAlchemy + Alembic
+- AI: Anthropic Claude (claude-sonnet-4-6) + ChromaDB (local) + Voyage AI embeddings
+- Frontend: Next.js (TypeScript)
 
+## Commit Granularity (IMPORTANT)
+
+Commits must be small and logical — one concern per commit. Never bundle a whole milestone into a single commit. Examples of correct granularity:
+
+- `feat(ai): abstract interfaces for LLM, embedder, vector store`
+- `feat(ai): Anthropic LLM provider`
+- `feat(rag): policy ingestion pipeline`
+- `feat(rag): retrieval and grounded answer generation`
+- `feat(api): POST /api/v1/chat/policy endpoint`
+
+Wrong: one commit for an entire milestone (e.g., "feat: Milestone 2 — Policy RAG").
 
 ## Development Workflow
 
