@@ -11,3 +11,4 @@ from app.models.payroll import PayrollRecord, PaymentStatus  # noqa: F401
 from app.models.onboarding import OnboardingTask, OnboardingStatus  # noqa: F401
 from app.models.job_history import JobHistory  # noqa: F401
 from app.models.ai_audit_log import AIAuditLog, AIIntent, ActionStatus  # noqa: F401
+from app.models.role_category_access import RoleCategoryAccess  # noqa: F401

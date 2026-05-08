@@ -28,6 +28,9 @@ class Settings(BaseSettings):
     # Vector store
     CHROMA_PERSIST_DIR: str = "./data/chroma_db"
 
+    # Policy document uploads
+    POLICY_UPLOAD_DIR: str = "./data/policies"
+
     # App
     APP_ENV: str = "development"
     LOG_LEVEL: str = "INFO"
