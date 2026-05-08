@@ -6,7 +6,10 @@ from app.services.ai.interfaces.llm import BaseLLMProvider
 
 class OpenAIProvider(BaseLLMProvider):
     def __init__(self):
-        self._client = OpenAI(api_key=settings.OPENAI_API_KEY)
+        kwargs = {"api_key": settings.OPENAI_API_KEY}
+        if settings.OPENAI_BASE_URL:
+            kwargs["base_url"] = settings.OPENAI_BASE_URL
+        self._client = OpenAI(**kwargs)
         self._model = settings.AI_LLM_MODEL
 
     def generate(self, prompt: str, system: Optional[str] = None, **kwargs) -> str:
