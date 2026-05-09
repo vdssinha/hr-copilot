@@ -204,7 +204,175 @@ def seed(db: Session) -> None:
         current_salary_usd=4500.0,
     )
 
-    db.add_all([admin, mgr_eng, mgr_sales, emp1, emp2, emp3, emp4, emp5])
+    # ── New department ────────────────────────────────────────────────────────
+    marketing = Department(name="Marketing & Communications", description="Brand, growth, and content marketing")
+    db.add(marketing)
+    db.flush()
+
+    # ── 10 additional employees (names sourced from hr_data.csv) ─────────────
+    # Kavya Sundaramoorthy — VP Engineering (C_LEVEL), top of Eng org
+    vp_eng = Employee(
+        employee_code="NW-009",
+        name="Kavya Sundaramoorthy",
+        email="kavya.sundaramoorthy@novaworks.in",
+        hashed_password=hash_password("CLevel@1234"),
+        role=EmployeeRole.C_LEVEL,
+        department_id=eng.id,
+        job_title="VP Engineering",
+        employment_type=EmploymentType.FULL_TIME,
+        status=EmployeeStatus.ACTIVE,
+        joining_date=date(2023, 11, 26),
+        date_of_birth=date(1993, 10, 31),
+        current_salary_usd=13500.0,
+    )
+
+    # Varsha Easwaran — Platform Manager (MANAGER), reports to VP Eng
+    mgr_platform = Employee(
+        employee_code="NW-010",
+        name="Varsha Easwaran",
+        email="varsha.easwaran@novaworks.in",
+        hashed_password=hash_password("Manager@1234"),
+        role=EmployeeRole.MANAGER,
+        department_id=eng.id,
+        job_title="Platform Engineering Manager",
+        employment_type=EmploymentType.FULL_TIME,
+        status=EmployeeStatus.ACTIVE,
+        joining_date=date(2022, 9, 16),
+        date_of_birth=date(1993, 6, 25),
+        current_salary_usd=7800.0,
+    )
+
+    # Arjun Rao — QA Engineer (EMPLOYEE), reports to Arjun Mehta
+    emp6 = Employee(
+        employee_code="NW-011",
+        name="Arjun Rao",
+        email="arjun.rao@novaworks.in",
+        hashed_password=hash_password("Employee@1234"),
+        role=EmployeeRole.EMPLOYEE,
+        department_id=eng.id,
+        job_title="QA Engineer",
+        employment_type=EmploymentType.FULL_TIME,
+        status=EmployeeStatus.ACTIVE,
+        joining_date=date(2021, 7, 11),
+        date_of_birth=date(1991, 6, 18),
+        current_salary_usd=5100.0,
+    )
+
+    # Mohan Dutta — DevOps Engineer (EMPLOYEE), reports to Platform Manager
+    emp7 = Employee(
+        employee_code="NW-012",
+        name="Mohan Dutta",
+        email="mohan.dutta@novaworks.in",
+        hashed_password=hash_password("Employee@1234"),
+        role=EmployeeRole.EMPLOYEE,
+        department_id=eng.id,
+        job_title="DevOps Engineer",
+        employment_type=EmploymentType.FULL_TIME,
+        status=EmployeeStatus.ACTIVE,
+        joining_date=date(2019, 7, 10),
+        date_of_birth=date(1982, 11, 12),
+        current_salary_usd=5400.0,
+    )
+
+    # Anitha Mittal — Software Engineer (EMPLOYEE), reports to Platform Manager
+    emp8 = Employee(
+        employee_code="NW-013",
+        name="Anitha Mittal",
+        email="anitha.mittal@novaworks.in",
+        hashed_password=hash_password("Employee@1234"),
+        role=EmployeeRole.EMPLOYEE,
+        department_id=eng.id,
+        job_title="Software Engineer",
+        employment_type=EmploymentType.FULL_TIME,
+        status=EmployeeStatus.ACTIVE,
+        joining_date=date(2023, 9, 12),
+        date_of_birth=date(1990, 3, 18),
+        current_salary_usd=4800.0,
+    )
+
+    # Gautam Kuppuswamy — Inside Sales Manager (MANAGER), reports to Sneha
+    mgr_inside_sales = Employee(
+        employee_code="NW-014",
+        name="Gautam Kuppuswamy",
+        email="gautam.kuppuswamy@novaworks.in",
+        hashed_password=hash_password("Manager@1234"),
+        role=EmployeeRole.MANAGER,
+        department_id=sales.id,
+        job_title="Inside Sales Manager",
+        employment_type=EmploymentType.FULL_TIME,
+        status=EmployeeStatus.ACTIVE,
+        joining_date=date(2025, 2, 12),
+        date_of_birth=date(1988, 9, 12),
+        current_salary_usd=7200.0,
+    )
+
+    # Shruti Jayaraman — Account Executive (EMPLOYEE), reports to Gautam
+    emp9 = Employee(
+        employee_code="NW-015",
+        name="Shruti Jayaraman",
+        email="shruti.jayaraman@novaworks.in",
+        hashed_password=hash_password("Employee@1234"),
+        role=EmployeeRole.EMPLOYEE,
+        department_id=sales.id,
+        job_title="Account Executive",
+        employment_type=EmploymentType.FULL_TIME,
+        status=EmployeeStatus.ACTIVE,
+        joining_date=date(2023, 2, 7),
+        date_of_birth=date(1987, 9, 19),
+        current_salary_usd=5500.0,
+    )
+
+    # Preeti Menon — Sales Representative (EMPLOYEE), reports to Gautam
+    emp10 = Employee(
+        employee_code="NW-016",
+        name="Preeti Menon",
+        email="preeti.menon@novaworks.in",
+        hashed_password=hash_password("Employee@1234"),
+        role=EmployeeRole.EMPLOYEE,
+        department_id=sales.id,
+        job_title="Sales Representative",
+        employment_type=EmploymentType.FULL_TIME,
+        status=EmployeeStatus.ACTIVE,
+        joining_date=date(2022, 11, 16),
+        date_of_birth=date(1982, 11, 11),
+        current_salary_usd=4800.0,
+    )
+
+    # Pavan Hariharan — HR Business Partner (HR role), reports to Priya
+    hr_bp = Employee(
+        employee_code="NW-017",
+        name="Pavan Hariharan",
+        email="pavan.hariharan@novaworks.in",
+        hashed_password=hash_password("Hr@1234"),
+        role=EmployeeRole.HR,
+        department_id=hr_dept.id,
+        job_title="HR Business Partner",
+        employment_type=EmploymentType.FULL_TIME,
+        status=EmployeeStatus.ACTIVE,
+        joining_date=date(2016, 9, 24),
+        date_of_birth=date(1985, 3, 23),
+        current_salary_usd=4800.0,
+    )
+
+    # Chirag Kuppuswamy — Marketing Specialist (MARKETING), reports to Priya
+    mkt_emp = Employee(
+        employee_code="NW-018",
+        name="Chirag Kuppuswamy",
+        email="chirag.kuppuswamy@novaworks.in",
+        hashed_password=hash_password("Employee@1234"),
+        role=EmployeeRole.MARKETING,
+        department_id=marketing.id,
+        job_title="Marketing Specialist",
+        employment_type=EmploymentType.FULL_TIME,
+        status=EmployeeStatus.ACTIVE,
+        joining_date=date(2023, 7, 14),
+        date_of_birth=date(1994, 4, 6),
+        current_salary_usd=5600.0,
+    )
+
+    db.add_all([admin, mgr_eng, mgr_sales, emp1, emp2, emp3, emp4, emp5,
+                vp_eng, mgr_platform, emp6, emp7, emp8,
+                mgr_inside_sales, emp9, emp10, hr_bp, mkt_emp])
     db.flush()
 
     # Set manager_id for employees
@@ -213,11 +381,26 @@ def seed(db: Session) -> None:
     emp3.manager_id = mgr_eng.id
     emp4.manager_id = mgr_sales.id
     emp5.manager_id = admin.id
+    # Eng hierarchy: Arjun Mehta → VP Eng; Platform Manager → VP Eng
+    mgr_eng.manager_id = vp_eng.id
+    mgr_platform.manager_id = vp_eng.id
+    # Arjun Rao (QA) → Arjun Mehta; Platform team → Platform Manager
+    emp6.manager_id = mgr_eng.id
+    emp7.manager_id = mgr_platform.id
+    emp8.manager_id = mgr_platform.id
+    # Sales hierarchy: Gautam → Sneha; Shruti/Preeti → Gautam
+    mgr_inside_sales.manager_id = mgr_sales.id
+    emp9.manager_id = mgr_inside_sales.id
+    emp10.manager_id = mgr_inside_sales.id
+    # HR and Marketing report to Admin/HR Director
+    hr_bp.manager_id = admin.id
+    mkt_emp.manager_id = admin.id
 
     # Set department heads
     eng.head_id = mgr_eng.id
     hr_dept.head_id = admin.id
     sales.head_id = mgr_sales.id
+    marketing.head_id = None
     db.flush()
 
     # ── Skills ────────────────────────────────────────────────────────────────
@@ -292,7 +475,9 @@ def seed(db: Session) -> None:
         db.add(EmployeeProject(employee_id=emp.id, project_id=proj.id, role=role))
 
     # ── Leave Balances (2026) ─────────────────────────────────────────────────
-    all_employees = [admin, mgr_eng, mgr_sales, emp1, emp2, emp3, emp4, emp5]
+    all_employees = [admin, mgr_eng, mgr_sales, emp1, emp2, emp3, emp4, emp5,
+                     vp_eng, mgr_platform, emp6, emp7, emp8,
+                     mgr_inside_sales, emp9, emp10, hr_bp, mkt_emp]
     for emp in all_employees:
         db.add(LeaveBalance(
             employee_id=emp.id, year=2026,
@@ -369,11 +554,11 @@ def seed(db: Session) -> None:
 
     # ── HR Policies ───────────────────────────────────────────────────────────
     policy_files = [
-        ("Leave Policy", PolicyCategory.LEAVE, "seed_policy_01_leave.md"),
-        ("Work From Home Policy", PolicyCategory.ATTENDANCE, "seed_policy_02_wfh.md"),
-        ("Attendance Policy", PolicyCategory.ATTENDANCE, "seed_policy_03_attendance.md"),
-        ("Code of Conduct Policy", PolicyCategory.CODE_OF_CONDUCT, "seed_policy_04_code_of_conduct.md"),
-        ("Employee Benefits Policy", PolicyCategory.BENEFITS, "seed_policy_05_benefits.md"),
+        ("Leave Policy", PolicyCategory.LEAVE, "leave/seed_policy_01_leave.md"),
+        ("Work From Home Policy", PolicyCategory.ATTENDANCE, "attendance/seed_policy_02_wfh.md"),
+        ("Attendance Policy", PolicyCategory.ATTENDANCE, "attendance/seed_policy_03_attendance.md"),
+        ("Code of Conduct Policy", PolicyCategory.CODE_OF_CONDUCT, "code_of_conduct/seed_policy_04_code_of_conduct.md"),
+        ("Employee Benefits Policy", PolicyCategory.BENEFITS, "benefits/seed_policy_05_benefits.md"),
     ]
     existing_titles: set[str] = set()
     for title, category, filename in policy_files:
@@ -428,14 +613,24 @@ def seed(db: Session) -> None:
 
     # ── Payroll Records (April 2026) ─────────────────────────────────────────
     payroll_data = [
-        (admin, 12000.0, 1200.0, 600.0),
-        (mgr_eng, 9000.0, 900.0, 450.0),
-        (mgr_sales, 8500.0, 850.0, 425.0),
-        (emp1, 6000.0, 600.0, 300.0),
-        (emp2, 5500.0, 550.0, 275.0),
-        (emp3, 5000.0, 500.0, 250.0),
-        (emp4, 5200.0, 520.0, 260.0),
-        (emp5, 4500.0, 450.0, 225.0),
+        (admin,            12000.0, 1200.0, 600.0),
+        (mgr_eng,           9000.0,  900.0, 450.0),
+        (mgr_sales,         8500.0,  850.0, 425.0),
+        (emp1,              6000.0,  600.0, 300.0),
+        (emp2,              5500.0,  550.0, 275.0),
+        (emp3,              5000.0,  500.0, 250.0),
+        (emp4,              5200.0,  520.0, 260.0),
+        (emp5,              4500.0,  450.0, 225.0),
+        (vp_eng,           13500.0, 1350.0, 675.0),
+        (mgr_platform,      7800.0,  780.0, 390.0),
+        (emp6,              5100.0,  510.0, 255.0),
+        (emp7,              5400.0,  540.0, 270.0),
+        (emp8,              4800.0,  480.0, 240.0),
+        (mgr_inside_sales,  7200.0,  720.0, 360.0),
+        (emp9,              5500.0,  550.0, 275.0),
+        (emp10,             4800.0,  480.0, 240.0),
+        (hr_bp,             4800.0,  480.0, 240.0),
+        (mkt_emp,           5600.0,  560.0, 280.0),
     ]
     for emp, basic, allowances, deductions in payroll_data:
         db.add(PayrollRecord(
@@ -516,12 +711,17 @@ def seed(db: Session) -> None:
     db.commit()
     print("Seed completed successfully.")
     print("\nTest credentials:")
-    print("  Admin:    priya.sharma@novaworks.in  / Admin@1234")
-    print("  Manager:  arjun.mehta@novaworks.in   / Manager@1234")
-    print("  Employee: rahul.verma@novaworks.in   / Employee@1234")
+    print("  Admin:      priya.sharma@novaworks.in       / Admin@1234")
+    print("  C_LEVEL:    kavya.sundaramoorthy@novaworks.in / CLevel@1234")
+    print("  Manager:    arjun.mehta@novaworks.in          / Manager@1234")
+    print("  Manager:    varsha.easwaran@novaworks.in       / Manager@1234")
+    print("  Manager:    gautam.kuppuswamy@novaworks.in     / Manager@1234")
+    print("  HR:         pavan.hariharan@novaworks.in       / Hr@1234")
+    print("  Marketing:  chirag.kuppuswamy@novaworks.in     / Employee@1234")
+    print("  Employee:   rahul.verma@novaworks.in           / Employee@1234")
 
 
-HR_DATA_CSV = Path(__file__).parent.parent / "data" / "hr" / "hr_data.csv"
+HR_DATA_CSV = Path(__file__).parent.parent / "data" / "employees" / "hr_data.csv"
 
 
 def seed_hr_data() -> None:

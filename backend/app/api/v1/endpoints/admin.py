@@ -304,7 +304,7 @@ def ingest_hr_data_endpoint(
     _: Employee = Depends(_require_admin),
 ):
     """Re-ingest hr_data.csv into the hr_data vector store collection."""
-    csv_path = Path(POLICY_UPLOAD_DIR).parent / "hr" / "hr_data.csv"
+    csv_path = Path(POLICY_UPLOAD_DIR).parent / "employees" / "hr_data.csv"
     if not csv_path.exists():
         raise HTTPException(status_code=404, detail="hr_data.csv not found")
     background_tasks.add_task(ingest_hr_data, csv_path)
