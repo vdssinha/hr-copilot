@@ -10,7 +10,16 @@ from app.core.config import POLICY_UPLOAD_DIR
 from app.core.dependencies import get_current_user, require_role
 from app.core.security import hash_password
 from app.db.session import get_db
+from app.models.ai_audit_log import AIAuditLog
+from app.models.announcement import Announcement
 from app.models.employee import Employee, EmployeeRole, EmploymentType, EmployeeStatus
+from app.models.job_history import JobHistory
+from app.models.leave import LeaveBalance, LeaveRequest
+from app.models.onboarding import OnboardingTask
+from app.models.payroll import PayrollRecord
+from app.models.project import EmployeeProject
+from app.models.skill import EmployeeSkill
+from app.models.ticket import Ticket
 from app.models.hr_policy import HRPolicy, PolicyCategory
 from app.models.role_category_access import RoleCategoryAccess
 from app.models.policy_group import PolicyGroup, GroupCategoryAccess
@@ -133,6 +142,19 @@ def delete_user(
     if employee.id == current_user.id:
         raise HTTPException(status_code=400, detail="Cannot delete your own account")
 
+    eid = employee.id
+    db.query(AIAuditLog).filter(AIAuditLog.user_id == eid).delete()
+    db.query(LeaveRequest).filter(LeaveRequest.employee_id == eid).delete()
+    db.query(LeaveBalance).filter(LeaveBalance.employee_id == eid).delete()
+    db.query(EmployeeProject).filter(EmployeeProject.employee_id == eid).delete()
+    db.query(EmployeeSkill).filter(EmployeeSkill.employee_id == eid).delete()
+    db.query(JobHistory).filter(JobHistory.employee_id == eid).delete()
+    db.query(OnboardingTask).filter(OnboardingTask.employee_id == eid).delete()
+    db.query(PayrollRecord).filter(PayrollRecord.employee_id == eid).delete()
+    db.query(Announcement).filter(Announcement.created_by_id == eid).delete()
+    db.query(Ticket).filter(Ticket.created_by_id == eid).delete()
+    db.query(Ticket).filter(Ticket.assigned_to_id == eid).update({"assigned_to_id": None})
+    db.query(Employee).filter(Employee.manager_id == eid).update({"manager_id": None})
     db.delete(employee)
     db.commit()
 
