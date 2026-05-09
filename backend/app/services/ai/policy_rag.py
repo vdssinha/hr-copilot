@@ -8,6 +8,7 @@ from app.models.employee import EmployeeRole
 from app.models.hr_policy import HRPolicy
 from app.models.role_category_access import RoleCategoryAccess
 from app.models.policy_group import GroupCategoryAccess
+from app.core.config import AI_MAX_TOKENS_POLICY_RAG_ANSWER
 from app.services.ai import factory as _factory
 from app.services.ai.interfaces.vector_store import Document
 
@@ -173,6 +174,6 @@ def answer_policy_question(
     prompt = f"Policy excerpts:\n\n{context_block}\n\nQuestion: {question}"
 
     llm = _factory.get_llm_provider()
-    answer = llm.generate(prompt, system=_SYSTEM_PROMPT, max_tokens=1024)
+    answer = llm.generate(prompt, system=_SYSTEM_PROMPT, max_tokens=AI_MAX_TOKENS_POLICY_RAG_ANSWER)
 
     return PolicyAnswer(answer=answer, sources=sources)

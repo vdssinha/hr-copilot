@@ -8,6 +8,7 @@ from typing import TypedDict, List, Any, Optional
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
+from app.core.config import AI_MAX_TOKENS_SQL_AGENT_QUERY, AI_MAX_TOKENS_SQL_AGENT_SUMMARY
 from app.models.employee import Employee, EmployeeRole
 from app.services.ai import factory as _factory
 from app.services.ai.sql_guardrails import validate_sql, scrub_forbidden_columns, SQLGuardError
@@ -141,7 +142,7 @@ def run_sql_query(db: Session, user: Employee, question: str) -> SQLResult:
     system = _SYSTEM_TEMPLATE.format(schema=schema_block, access_rules=access_rules)
 
     llm = _factory.get_llm_provider()
-    raw_sql = llm.generate(question, system=system, max_tokens=512)
+    raw_sql = llm.generate(question, system=system, max_tokens=AI_MAX_TOKENS_SQL_AGENT_QUERY)
     sql = _extract_sql(raw_sql)
 
     if sql is None:
@@ -187,6 +188,6 @@ def run_sql_query(db: Session, user: Employee, question: str) -> SQLResult:
             "Write a concise 1-2 sentence natural language summary of these results. "
             "Do not mention SQL or technical details."
         )
-        answer = llm.generate(summary_prompt, system="Summarize HR data query results clearly.", max_tokens=256)
+        answer = llm.generate(summary_prompt, system="Summarize HR data query results clearly.", max_tokens=AI_MAX_TOKENS_SQL_AGENT_SUMMARY)
 
     return SQLResult(answer=answer, sql=validated_sql, rows=rows, row_count=len(rows))

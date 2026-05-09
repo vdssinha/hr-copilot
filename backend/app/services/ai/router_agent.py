@@ -7,6 +7,7 @@ from typing import Literal, TypedDict
 
 from sqlalchemy.orm import Session
 
+from app.core.config import AI_MAX_TOKENS_SMART_COPILOT_INTENT
 from app.models.employee import Employee
 from app.services.ai import factory as _factory
 
@@ -30,7 +31,7 @@ class RouteResult(TypedDict):
 
 def classify_intent(message: str) -> RouteResult:
     llm = _factory.get_llm_provider()
-    raw = llm.generate(message, system=_CLASSIFY_SYSTEM, max_tokens=512)
+    raw = llm.generate(message, system=_CLASSIFY_SYSTEM, max_tokens=AI_MAX_TOKENS_SMART_COPILOT_INTENT)
 
     raw = raw.strip()
     raw = re.sub(r"```(?:json)?", "", raw, flags=re.IGNORECASE).strip("` \n")

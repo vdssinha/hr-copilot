@@ -63,3 +63,66 @@ BACKEND_BASE_URL  = os.getenv("BACKEND_BASE_URL",  "http://localhost:8000")
 # ── App ───────────────────────────────────────────────────────────────────────
 APP_ENV   = os.getenv("APP_ENV",   "development")
 LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO")
+
+# ── AI Generation Token Limits ────────────────────────────────────────────────
+# Correlation map (must hold when tuning any value):
+#
+#   SMART_COPILOT_INTENT  ≥  SQL_AGENT_QUERY
+#       Reasoning models consume thinking tokens before output. Intent output
+#       is tiny (~100 tokens JSON) but thinking can exceed 200 tokens, so the
+#       budget must be larger than a raw-generation task like SQL.
+#
+#   SQL_AGENT_QUERY  ≈  2× SQL_AGENT_SUMMARY
+#       The query itself can be complex (JOINs, subqueries ~300 tokens);
+#       the summary is always 1-2 sentences (~100 tokens). Half is enough.
+#
+#   POLICY_RAG_ANSWER  =  HR_DATA_RAG_ANSWER
+#       Both produce multi-paragraph prose answers with source citations.
+#       Keep in sync — diverging them creates inconsistent answer depth.
+#
+#   POLICY_RAG_ANSWER  ≈  2× SQL_AGENT_QUERY
+#       Prose answers need more space than generated SQL.
+#
+#   ACTION_AGENT_EXTRACT  =  POLICY_RAG_ANSWER
+#       Tool-call JSON with nested parameters can be as long as a prose answer.
+#
+#   ACTION_AGENT_SUMMARY  ≈  0.5× ACTION_AGENT_EXTRACT
+#       Post-action summary is always brief; half the extraction budget.
+
+# Used in: router_agent.py — LLM call that classifies user intent into
+#   POLICY_QA / SQL_QUERY / HR_ACTION / UNKNOWN.
+#   Must be ≥ SMART_COPILOT_INTENT (see correlation above).
+#   Raised from 128 → 512 because reasoning models (e.g. Gemma 4-31b)
+#   spend 100-300 thinking tokens before emitting the ~100-token JSON output.
+AI_MAX_TOKENS_SMART_COPILOT_INTENT = int(os.getenv("AI_MAX_TOKENS_SMART_COPILOT_INTENT", "512"))
+
+# Used in: sql_agent.py — LLM call that generates the SQL SELECT statement.
+#   SQL queries are short (~50-300 tokens). 512 covers complex JOINs.
+#   Must be ≤ SMART_COPILOT_INTENT (see correlation above).
+#   Must be ≈ 2× SQL_AGENT_SUMMARY.
+AI_MAX_TOKENS_SQL_AGENT_QUERY = int(os.getenv("AI_MAX_TOKENS_SQL_AGENT_QUERY", "512"))
+
+# Used in: sql_agent.py — LLM call that summarises SQL result rows in plain English.
+#   Output is always 1-2 sentences; 256 is generous.
+#   Must be ≈ 0.5× SQL_AGENT_QUERY (see correlation above).
+AI_MAX_TOKENS_SQL_AGENT_SUMMARY = int(os.getenv("AI_MAX_TOKENS_SQL_AGENT_SUMMARY", "256"))
+
+# Used in: policy_rag.py — LLM call that answers HR policy questions from
+#   retrieved document chunks. Multi-paragraph answers with citations need room.
+#   Must equal HR_DATA_RAG_ANSWER and ≈ 2× SQL_AGENT_QUERY (see correlations).
+AI_MAX_TOKENS_POLICY_RAG_ANSWER = int(os.getenv("AI_MAX_TOKENS_POLICY_RAG_ANSWER", "1024"))
+
+# Used in: hr_data_rag.py — LLM call that answers questions over HR employee
+#   data. Same answer format as POLICY_RAG_ANSWER; keep in sync.
+#   Must equal POLICY_RAG_ANSWER (see correlation above).
+AI_MAX_TOKENS_HR_DATA_RAG_ANSWER = int(os.getenv("AI_MAX_TOKENS_HR_DATA_RAG_ANSWER", "1024"))
+
+# Used in: action_agent.py — LLM call that extracts structured tool-call JSON
+#   from the user message (intent + parameters). Nested JSON can be verbose.
+#   Must equal POLICY_RAG_ANSWER (see correlation above).
+AI_MAX_TOKENS_ACTION_AGENT_EXTRACT = int(os.getenv("AI_MAX_TOKENS_ACTION_AGENT_EXTRACT", "1024"))
+
+# Used in: action_agent.py — LLM call that summarises the action result in
+#   plain English after execution. Always brief.
+#   Must be ≈ 0.5× ACTION_AGENT_EXTRACT (see correlation above).
+AI_MAX_TOKENS_ACTION_AGENT_SUMMARY = int(os.getenv("AI_MAX_TOKENS_ACTION_AGENT_SUMMARY", "500"))

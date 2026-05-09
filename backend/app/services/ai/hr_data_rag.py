@@ -13,6 +13,7 @@ import io
 from pathlib import Path
 from typing import List, Optional, TypedDict
 
+from app.core.config import AI_MAX_TOKENS_HR_DATA_RAG_ANSWER
 from app.models.employee import EmployeeRole
 from app.services.ai import factory as _factory
 from app.services.ai.interfaces.vector_store import Document
@@ -156,6 +157,6 @@ def query_hr_data(
     answer = llm.generate(
         f"Employee records:\n\n{context}\n\nQuestion: {question}",
         system=system,
-        max_tokens=1024,
+        max_tokens=AI_MAX_TOKENS_HR_DATA_RAG_ANSWER,
     )
     return HRDataAnswer(answer=answer, rows_found=len(relevant))

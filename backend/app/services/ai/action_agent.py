@@ -9,6 +9,7 @@ from typing import Optional, TypedDict
 
 from sqlalchemy.orm import Session
 
+from app.core.config import AI_MAX_TOKENS_ACTION_AGENT_EXTRACT, AI_MAX_TOKENS_ACTION_AGENT_SUMMARY
 from app.models.employee import Employee
 from app.services.ai.api_tools import (
     apply_leave, check_leave_balance,
@@ -80,7 +81,7 @@ def _summarize_result(llm, action: str, message: str, result: dict) -> str:
         "Write a clear, friendly 1-2 sentence confirmation of what was done. "
         "Do not mention JSON, IDs, or technical details unless directly relevant."
     )
-    return llm.generate(prompt, system="Summarize HR action results clearly.", max_tokens=500)
+    return llm.generate(prompt, system="Summarize HR action results clearly.", max_tokens=AI_MAX_TOKENS_ACTION_AGENT_SUMMARY)
 
 
 def run_action(db: Session, user: Employee, message: str) -> ActionResult:
@@ -88,7 +89,7 @@ def run_action(db: Session, user: Employee, message: str) -> ActionResult:
 
     # Step 1: Extract intent + params
     prompt = _build_extract_prompt(message, user)
-    raw = llm.generate(prompt, system=_EXTRACT_SYSTEM, max_tokens=1024)
+    raw = llm.generate(prompt, system=_EXTRACT_SYSTEM, max_tokens=AI_MAX_TOKENS_ACTION_AGENT_EXTRACT)
 
     try:
         parsed = _parse_llm_json(raw)
