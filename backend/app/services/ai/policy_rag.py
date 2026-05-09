@@ -74,6 +74,7 @@ def ingest_policies(db: Session) -> int:
         batch_texts = [d.content for d in documents[i : i + batch_size]]
         all_embeddings.extend(embedder.embed(batch_texts))
 
+    store.clear()
     store.add_documents(documents, all_embeddings)
 
     # Mark policies as embedded
