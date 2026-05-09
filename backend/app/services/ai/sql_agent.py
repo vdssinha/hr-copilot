@@ -89,13 +89,15 @@ def _build_access_rules(user: Employee, db: Session) -> str:
     if user.role == EmployeeRole.MANAGER:
         return (
             f"Manager role (employee_id={user.id}). "
-            f"For the employees table: access is limited to your own record (id = {user.id}) "
-            f"OR your direct reports (manager_id = {user.id}). "
+            f"For the employees table: "
+            f"  - Public fields (id, name, role, job_title, department_id, employment_type, status, manager_id, joining_date): "
+            f"    no row filter needed — you may query any employee for org-chart lookups. "
+            f"  - current_salary_usd: only allowed for your own record (id = {user.id}) "
+            f"    or your direct reports (manager_id = {user.id}). "
             f"For other employee-specific tables (leave_requests, leave_balances, tickets, "
             f"employee_projects, employee_skills, job_history): "
             f"filter by employee_id IN (SELECT id FROM employees WHERE id = {user.id} OR manager_id = {user.id}) "
-            f"or created_by_id IN same set. "
-            f"current_salary_usd may be queried but only for employees matching the above access rules. "
+            f"or created_by_id in same set. "
             f"For project/department catalog queries, no filter needed."
         )
 
@@ -135,6 +137,8 @@ def _extract_sql(raw: str) -> Optional[str]:
         raw = select_match.group(0)
     elif _SENTINEL_ACCESS_DENIED in upper:
         return _SENTINEL_ACCESS_DENIED
+    else:
+        return None  # no valid SQL found — treat as CANNOT_ANSWER
     return raw.split(";")[0].strip()
 
 
