@@ -561,6 +561,7 @@ def seed(db: Session) -> None:
         ("Employee Benefits Policy", PolicyCategory.BENEFITS, "benefits/seed_policy_05_benefits.md"),
     ]
     existing_titles: set[str] = set()
+    existing_basenames: set[str] = set()
     for title, category, filename in policy_files:
         content = load_policy_content(filename)
         db.add(HRPolicy(
@@ -572,6 +573,7 @@ def seed(db: Session) -> None:
             created_by_id=admin.id,
         ))
         existing_titles.add(title)
+        existing_basenames.add(Path(filename).name)
 
     # ── Auto-scan data/policies/{category}/ subdirectories ────────────────────
     subdir_map = _build_subdir_map()
@@ -583,7 +585,7 @@ def seed(db: Session) -> None:
             if file_path.suffix.lower() not in _SUPPORTED_EXTENSIONS:
                 continue
             title = file_path.stem.replace("_", " ").replace("-", " ").title()
-            if title in existing_titles:
+            if title in existing_titles or file_path.name in existing_basenames:
                 continue
             try:
                 content = _extract_text_from_path(file_path)
@@ -753,6 +755,11 @@ if __name__ == "__main__":
 
         print("\nIngesting HR employee data into vector store…")
         seed_hr_data()
+
+        print("\nIngesting HR policies into vector store…")
+        from app.services.ai.policy_rag import ingest_policies
+        count = ingest_policies(db)
+        print(f"  [policies] ingested {count} chunks")
 
     except Exception as e:
         db.rollback()
