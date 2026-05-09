@@ -38,26 +38,28 @@ export async function login(email: string, password: string) {
 }
 
 // Chat — standard JSON endpoints
-export const chatPolicy = (message: string, token: string) =>
-  post("/chat/policy", { message }, token);
+export type HistoryMessage = { role: "user" | "assistant"; content: string };
 
-export const chatSQL = (message: string, token: string) =>
-  post("/chat/sql", { message }, token);
+export const chatPolicy = (message: string, token: string, history: HistoryMessage[] = []) =>
+  post("/chat/policy", { message, history }, token);
 
-export const chatActions = (message: string, token: string) =>
-  post("/chat/actions", { message }, token);
+export const chatSQL = (message: string, token: string, history: HistoryMessage[] = []) =>
+  post("/chat/sql", { message, history }, token);
 
-export const chatRouter = (message: string, token: string) =>
-  post("/chat/router", { message }, token);
+export const chatActions = (message: string, token: string, history: HistoryMessage[] = []) =>
+  post("/chat/actions", { message, history }, token);
 
-export const chatLangGraph = (message: string, token: string) =>
-  post("/chat/langgraph", { message }, token);
+export const chatRouter = (message: string, token: string, history: HistoryMessage[] = []) =>
+  post("/chat/router", { message, history }, token);
 
-export const chatHrData = (message: string, token: string) =>
-  post("/chat/hr-data", { message }, token);
+export const chatLangGraph = (message: string, token: string, history: HistoryMessage[] = []) =>
+  post("/chat/langgraph", { message, history }, token);
 
-// Chat — SSE streaming (router/stream)
-export type SSEEvent =
+export const chatHrData = (message: string, token: string, history: HistoryMessage[] = []) =>
+  post("/chat/hr-data", { message, history }, token);
+
+// Chat — Streamable HTTP / NDJSON streaming (router/stream)
+export type StreamEvent =
   | { type: "status"; message: string }
   | { type: "result"; route: unknown; result: unknown }
   | { type: "error"; message: string }
@@ -168,12 +170,13 @@ export const admin = {
 export async function streamRouter(
   message: string,
   token: string,
-  onEvent: (event: SSEEvent) => void,
+  onEvent: (event: StreamEvent) => void,
+  history: HistoryMessage[] = [],
 ): Promise<void> {
   const res = await fetch(`${BASE}/chat/router/stream`, {
     method: "POST",
     headers: authHeaders(token),
-    body: JSON.stringify({ message }),
+    body: JSON.stringify({ message, history }),
   });
 
   if (!res.ok || !res.body) {
@@ -197,7 +200,7 @@ export async function streamRouter(
       const trimmed = line.trim();
       if (trimmed) {
         try {
-          const event = JSON.parse(trimmed) as SSEEvent;
+          const event = JSON.parse(trimmed) as StreamEvent;
           onEvent(event);
         } catch {
           // skip malformed

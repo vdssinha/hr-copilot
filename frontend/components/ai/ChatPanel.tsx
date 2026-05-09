@@ -9,7 +9,7 @@ import { SQLResultTable } from "./SQLResultTable";
 import { ActionResultCard } from "./ActionResultCard";
 import {
   chatPolicy, chatSQL, chatActions, chatLangGraph, chatHrData,
-  streamRouter, SSEEvent,
+  streamRouter, StreamEvent, HistoryMessage,
 } from "@/lib/api";
 
 export type Mode = "router" | "policy" | "sql" | "actions" | "langgraph" | "hr-data";
@@ -74,11 +74,13 @@ export function ChatPanel({ token, mode }: ChatPanelProps) {
     setLoading(true);
     setStatusText("Thinking…");
 
+    const history: HistoryMessage[] = messages.map((m) => ({ role: m.role, content: m.text }));
+
     try {
       if (mode === "router") {
         const statusLog: string[] = [];
         let finalMsg: Omit<Message, "role"> = { text: "" };
-        await streamRouter(text, token, (event: SSEEvent) => {
+        await streamRouter(text, token, (event: StreamEvent) => {
           if (event.type === "status")   { setStatusText(event.message); statusLog.push(event.message); }
           else if (event.type === "result") {
             const ev = event as { type: "result"; route: unknown; result: unknown };
@@ -86,31 +88,31 @@ export function ChatPanel({ token, mode }: ChatPanelProps) {
           } else if (event.type === "error") {
             finalMsg = { text: event.message, error: event.message };
           }
-        });
+        }, history);
         setMessages((m) => [...m, { role: "assistant", ...finalMsg }]);
 
       } else if (mode === "policy") {
-        const resp = await chatPolicy(text, token) as Record<string, unknown>;
+        const resp = await chatPolicy(text, token, history) as Record<string, unknown>;
         const d = resp.data as Record<string, unknown>;
         setMessages((m) => [...m, { role: "assistant", text: (d?.answer ?? resp.error ?? "Error") as string, sources: d?.sources as unknown[] }]);
 
       } else if (mode === "sql") {
-        const resp = await chatSQL(text, token) as Record<string, unknown>;
+        const resp = await chatSQL(text, token, history) as Record<string, unknown>;
         const d = resp.data as Record<string, unknown>;
         setMessages((m) => [...m, { role: "assistant", text: (d?.answer ?? resp.error ?? "Error") as string, rows: d?.rows as unknown[], sql: d?.sql as string }]);
 
       } else if (mode === "actions") {
-        const resp = await chatActions(text, token) as Record<string, unknown>;
+        const resp = await chatActions(text, token, history) as Record<string, unknown>;
         const d = resp.data as Record<string, unknown>;
         setMessages((m) => [...m, { role: "assistant", text: (d?.answer ?? resp.error ?? "Error") as string, action: d?.action as string, actionSuccess: d?.success as boolean, actionData: d?.data as Record<string, unknown> }]);
 
       } else if (mode === "langgraph") {
-        const resp = await chatLangGraph(text, token) as Record<string, unknown>;
+        const resp = await chatLangGraph(text, token, history) as Record<string, unknown>;
         const d = resp.data as Record<string, unknown>;
         setMessages((m) => [...m, { role: "assistant", ...extractFromRouterResult(d) }]);
 
       } else if (mode === "hr-data") {
-        const resp = await chatHrData(text, token) as Record<string, unknown>;
+        const resp = await chatHrData(text, token, history) as Record<string, unknown>;
         const d = resp.data as Record<string, unknown>;
         setMessages((m) => [...m, { role: "assistant", text: (d?.answer ?? resp.error ?? "Error") as string }]);
       }
