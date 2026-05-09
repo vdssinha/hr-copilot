@@ -16,6 +16,7 @@ from typing import List, Optional, TypedDict
 from app.core.config import AI_MAX_TOKENS_HR_DATA_RAG_ANSWER
 from app.models.employee import EmployeeRole
 from app.services.ai import factory as _factory
+from app.services.ai.context import build_history_block
 from app.services.ai.interfaces.vector_store import Document
 
 _COLLECTION = "hr_data"
@@ -81,6 +82,7 @@ def query_hr_data(
     user_role: EmployeeRole,
     employee_code: str = "",
     employee_name: str = "",
+    history: list = None,
 ) -> HRDataAnswer:
     """Semantic search over HR employee data with role-based field-level access control.
 
@@ -153,9 +155,11 @@ def query_hr_data(
 
     context = "\n\n---\n\n".join(doc.content for doc, _ in relevant)
 
+    history_block = build_history_block(history or [])
+    preamble = f"{history_block}\n" if history_block else ""
     llm = _factory.get_llm_provider()
     answer = llm.generate(
-        f"Employee records:\n\n{context}\n\nQuestion: {question}",
+        f"{preamble}Employee records:\n\n{context}\n\nQuestion: {question}",
         system=system,
         max_tokens=AI_MAX_TOKENS_HR_DATA_RAG_ANSWER,
     )

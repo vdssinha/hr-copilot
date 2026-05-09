@@ -126,3 +126,8 @@ AI_MAX_TOKENS_ACTION_AGENT_EXTRACT = int(os.getenv("AI_MAX_TOKENS_ACTION_AGENT_E
 #   plain English after execution. Always brief.
 #   Must be ≈ 0.5× ACTION_AGENT_EXTRACT (see correlation above).
 AI_MAX_TOKENS_ACTION_AGENT_SUMMARY = int(os.getenv("AI_MAX_TOKENS_ACTION_AGENT_SUMMARY", "500"))
+
+# ── Conversation Memory ───────────────────────────────────────────────────────
+# Prior conversation turns (user+assistant pairs) sent to ALL agents so they
+# can resolve references like "her", "that project", etc. from recent context.
+AI_CONTEXT_TURNS = int(os.getenv("AI_CONTEXT_TURNS", "3"))

@@ -10,6 +10,7 @@ from app.models.role_category_access import RoleCategoryAccess
 from app.models.policy_group import GroupCategoryAccess
 from app.core.config import AI_MAX_TOKENS_POLICY_RAG_ANSWER
 from app.services.ai import factory as _factory
+from app.services.ai.context import build_history_block
 from app.services.ai.interfaces.vector_store import Document
 
 _CHUNK_SIZE = 800
@@ -120,6 +121,7 @@ def answer_policy_question(
     question: str,
     user_role: Optional[EmployeeRole] = None,
     policy_group: Optional[str] = None,
+    history: list = None,
 ) -> PolicyAnswer:
     """Retrieve relevant policy chunks and generate a grounded answer.
 
@@ -171,7 +173,9 @@ def answer_policy_question(
             ))
 
     context_block = "\n\n---\n\n".join(context_parts)
-    prompt = f"Policy excerpts:\n\n{context_block}\n\nQuestion: {question}"
+    history_block = build_history_block(history or [])
+    preamble = f"{history_block} " if history_block else ""
+    prompt = f"{preamble}Policy excerpts:\n\n{context_block}\n\nQuestion: {question}"
 
     llm = _factory.get_llm_provider()
     answer = llm.generate(prompt, system=_SYSTEM_PROMPT, max_tokens=AI_MAX_TOKENS_POLICY_RAG_ANSWER)

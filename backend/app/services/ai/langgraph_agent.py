@@ -26,6 +26,7 @@ class AgentState(TypedDict):
     message: str
     db: Any          # sqlalchemy Session (not serialised)
     user: Any        # Employee ORM object (not serialised)
+    history: list    # prior conversation turns for context resolution
 
     # mutable across nodes
     intent: str
@@ -54,6 +55,7 @@ def node_policy_rag(state: AgentState) -> dict:
             state["db"], state["message"],
             user_role=user.role,
             policy_group=user.policy_group,
+            history=state.get("history", []),
         )
         return {"result": dict(result)}
     except Exception as e:
@@ -63,7 +65,7 @@ def node_policy_rag(state: AgentState) -> dict:
 def node_sql_agent(state: AgentState) -> dict:
     from app.services.ai.sql_agent import run_sql_query
     try:
-        result = run_sql_query(state["db"], state["user"], state["message"])
+        result = run_sql_query(state["db"], state["user"], state["message"], history=state.get("history", []))
         return {"result": dict(result)}
     except Exception as e:
         return {"error": str(e), "result": {"answer": "Data query failed.", "sql": "", "rows": [], "row_count": 0}}
@@ -72,7 +74,7 @@ def node_sql_agent(state: AgentState) -> dict:
 def node_action_agent(state: AgentState) -> dict:
     from app.services.ai.action_agent import run_action
     try:
-        result = run_action(state["db"], state["user"], state["message"])
+        result = run_action(state["db"], state["user"], state["message"], history=state.get("history", []))
         return {"result": dict(result)}
     except Exception as e:
         return {"error": str(e), "result": {"answer": "Action failed.", "action": "UNKNOWN", "success": False, "data": None}}
@@ -134,12 +136,13 @@ def build_hr_graph() -> StateGraph:
 _hr_graph = build_hr_graph()
 
 
-def run_langgraph(db: Session, user: Employee, message: str) -> dict:
+def run_langgraph(db: Session, user: Employee, message: str, history: list = None) -> dict:
     """Run the HR copilot LangGraph and return a unified result dict."""
     initial_state: AgentState = {
         "message": message,
         "db": db,
         "user": user,
+        "history": history or [],
         "intent": "",
         "confidence": 0.0,
         "reason": "",

@@ -55,23 +55,23 @@ def classify_intent(message: str) -> RouteResult:
         return RouteResult(intent="UNKNOWN", confidence=0.0, reason="Could not parse intent.")
 
 
-def route_and_answer(db: Session, user: Employee, message: str) -> dict:
+def route_and_answer(db: Session, user: Employee, message: str, history: list = None) -> dict:
     """Classify intent then dispatch to the appropriate agent."""
     route = classify_intent(message)
 
     if route["intent"] == "POLICY_QA":
         from app.services.ai.policy_rag import answer_policy_question
-        result = answer_policy_question(db, message, user_role=user.role, policy_group=user.policy_group)
+        result = answer_policy_question(db, message, user_role=user.role, policy_group=user.policy_group, history=history)
         return {"route": route, "result": result}
 
     if route["intent"] == "SQL_QUERY":
         from app.services.ai.sql_agent import run_sql_query
-        result = run_sql_query(db, user, message)
+        result = run_sql_query(db, user, message, history=history)
         return {"route": route, "result": result}
 
     if route["intent"] == "HR_ACTION":
         from app.services.ai.action_agent import run_action
-        result = run_action(db, user, message)
+        result = run_action(db, user, message, history=history)
         return {"route": route, "result": result}
 
     return {

@@ -10,6 +10,7 @@ from typing import Optional, TypedDict
 from sqlalchemy.orm import Session
 
 from app.core.config import AI_MAX_TOKENS_ACTION_AGENT_EXTRACT, AI_MAX_TOKENS_ACTION_AGENT_SUMMARY
+from app.services.ai.context import build_history_block
 from app.models.employee import Employee
 from app.services.ai.api_tools import (
     apply_leave, check_leave_balance,
@@ -61,9 +62,12 @@ def _parse_llm_json(raw: str) -> dict:
     return json.loads(raw)
 
 
-def _build_extract_prompt(message: str, user: Employee) -> str:
+def _build_extract_prompt(message: str, user: Employee, history: list = None) -> str:
     actions = sorted(allowed_actions(user))
+    history_block = build_history_block(history or [])
+    preamble = f"{history_block}\n" if history_block else ""
     return (
+        f"{preamble}"
         f"User role: {user.role.value}\n"
         f"Allowed actions for this user: {actions}\n\n"
         f"User message: {message}"
@@ -84,11 +88,11 @@ def _summarize_result(llm, action: str, message: str, result: dict) -> str:
     return llm.generate(prompt, system="Summarize HR action results clearly.", max_tokens=AI_MAX_TOKENS_ACTION_AGENT_SUMMARY)
 
 
-def run_action(db: Session, user: Employee, message: str) -> ActionResult:
+def run_action(db: Session, user: Employee, message: str, history: list = None) -> ActionResult:
     llm = _factory.get_llm_provider()
 
     # Step 1: Extract intent + params
-    prompt = _build_extract_prompt(message, user)
+    prompt = _build_extract_prompt(message, user, history=history)
     raw = llm.generate(prompt, system=_EXTRACT_SYSTEM, max_tokens=AI_MAX_TOKENS_ACTION_AGENT_EXTRACT)
 
     try:
