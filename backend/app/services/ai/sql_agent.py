@@ -118,7 +118,13 @@ def _extract_sql(raw: str) -> Optional[str]:
     raw = raw.strip()
     # Strip markdown fences if present
     raw = re.sub(r"```(?:sql)?", "", raw, flags=re.IGNORECASE).strip("` \n")
-    if raw.upper() == "CANNOT_ANSWER":
+    if raw.upper().strip() == "CANNOT_ANSWER":
+        return None
+    # If LLM added preamble text before SELECT, find the first SELECT statement
+    select_match = re.search(r"\bSELECT\b.*", raw, re.IGNORECASE | re.DOTALL)
+    if select_match:
+        raw = select_match.group(0)
+    elif "CANNOT_ANSWER" in raw.upper():
         return None
     # Take only the first statement
     return raw.split(";")[0].strip()
