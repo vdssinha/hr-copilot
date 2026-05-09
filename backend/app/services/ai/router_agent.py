@@ -30,7 +30,7 @@ class RouteResult(TypedDict):
 
 def classify_intent(message: str) -> RouteResult:
     llm = _factory.get_llm_provider()
-    raw = llm.generate(message, system=_CLASSIFY_SYSTEM, max_tokens=128)
+    raw = llm.generate(message, system=_CLASSIFY_SYSTEM, max_tokens=512)
 
     raw = raw.strip()
     raw = re.sub(r"```(?:json)?", "", raw, flags=re.IGNORECASE).strip("` \n")
@@ -46,6 +46,11 @@ def classify_intent(message: str) -> RouteResult:
             reason=parsed.get("reason", ""),
         )
     except (json.JSONDecodeError, ValueError):
+        # Truncated response (reasoning model used most of the token budget) —
+        # extract intent via regex before giving up.
+        m = re.search(r'"intent"\s*:\s*"(POLICY_QA|SQL_QUERY|HR_ACTION|UNKNOWN)"', raw)
+        if m:
+            return RouteResult(intent=m.group(1), confidence=0.5, reason="Parsed from truncated response.")
         return RouteResult(intent="UNKNOWN", confidence=0.0, reason="Could not parse intent.")
 
 
