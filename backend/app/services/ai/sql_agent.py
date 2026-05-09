@@ -9,6 +9,7 @@ from sqlalchemy import text
 from sqlalchemy.orm import Session
 
 from app.core.config import AI_MAX_TOKENS_SQL_AGENT_QUERY, AI_MAX_TOKENS_SQL_AGENT_SUMMARY
+from app.services.ai.context import build_history_block
 from app.models.employee import Employee, EmployeeRole
 from app.services.ai import factory as _factory
 from app.services.ai.sql_guardrails import validate_sql, scrub_forbidden_columns, SQLGuardError
@@ -64,7 +65,10 @@ Rules you MUST follow:
 3. Always apply the access filter WHERE clauses described in the access rules.
    For current_salary_usd: only include it when access rules explicitly permit salary access.
 4. Return ONLY the SQL query — no explanation, no markdown fences, no semicolon at the end.
-5. If the question cannot be answered safely, respond with exactly: CANNOT_ANSWER"""
+5. If the access rules explicitly prohibit this query (e.g. requesting salary of a manager/peer,
+   data of employees outside your scope), respond with exactly: ACCESS_DENIED
+6. If the question cannot be answered for any other reason (ambiguous, unrelated to HR data),
+   respond with exactly: CANNOT_ANSWER"""
 
 
 class SQLResult(TypedDict):
@@ -83,16 +87,15 @@ def _build_access_rules(user: Employee, db: Session) -> str:
         )
 
     if user.role == EmployeeRole.MANAGER:
-        from app.models.employee import Employee as Emp
-        reports = db.query(Emp.id).filter(Emp.manager_id == user.id).all()
-        report_ids = [r.id for r in reports]
-        team_ids = [user.id] + report_ids
-        id_list = tuple(team_ids) if len(team_ids) > 1 else f"({team_ids[0]})"
         return (
             f"Manager role (employee_id={user.id}). "
-            f"For employee-specific data, restrict to employee_id IN {id_list} "
+            f"For the employees table: access is limited to your own record (id = {user.id}) "
+            f"OR your direct reports (manager_id = {user.id}). "
+            f"For other employee-specific tables (leave_requests, leave_balances, tickets, "
+            f"employee_projects, employee_skills, job_history): "
+            f"filter by employee_id IN (SELECT id FROM employees WHERE id = {user.id} OR manager_id = {user.id}) "
             f"or created_by_id IN same set. "
-            f"current_salary_usd may be queried but only for employees in that set. "
+            f"current_salary_usd may be queried but only for employees matching the above access rules. "
             f"For project/department catalog queries, no filter needed."
         )
 
@@ -115,19 +118,23 @@ def _build_access_rules(user: Employee, db: Session) -> str:
     )
 
 
+_SENTINEL_ACCESS_DENIED = "ACCESS_DENIED"
+_SENTINEL_CANNOT_ANSWER = "CANNOT_ANSWER"
+
+
 def _extract_sql(raw: str) -> Optional[str]:
     raw = raw.strip()
-    # Strip markdown fences if present
     raw = re.sub(r"```(?:sql)?", "", raw, flags=re.IGNORECASE).strip("` \n")
-    if raw.upper().strip() == "CANNOT_ANSWER":
+    upper = raw.upper().strip()
+    if upper == _SENTINEL_ACCESS_DENIED or upper.startswith(_SENTINEL_ACCESS_DENIED):
+        return _SENTINEL_ACCESS_DENIED
+    if upper == _SENTINEL_CANNOT_ANSWER or _SENTINEL_CANNOT_ANSWER in upper:
         return None
-    # If LLM added preamble text before SELECT, find the first SELECT statement
     select_match = re.search(r"\bSELECT\b.*", raw, re.IGNORECASE | re.DOTALL)
     if select_match:
         raw = select_match.group(0)
-    elif "CANNOT_ANSWER" in raw.upper():
-        return None
-    # Take only the first statement
+    elif _SENTINEL_ACCESS_DENIED in upper:
+        return _SENTINEL_ACCESS_DENIED
     return raw.split(";")[0].strip()
 
 
@@ -136,18 +143,29 @@ def _rows_to_dicts(result) -> List[dict]:
     return [dict(zip(keys, row)) for row in result.fetchall()]
 
 
-def run_sql_query(db: Session, user: Employee, question: str) -> SQLResult:
+def run_sql_query(db: Session, user: Employee, question: str, history: list = None) -> SQLResult:
     schema_block = "\n".join(_TABLE_SCHEMAS[t] for t in _ALLOWED_TABLES)
     access_rules = _build_access_rules(user, db)
     system = _SYSTEM_TEMPLATE.format(schema=schema_block, access_rules=access_rules)
 
+    history_block = build_history_block(history or [])
+    prompt = f"{history_block} {question}" if history_block else question
+
     llm = _factory.get_llm_provider()
-    raw_sql = llm.generate(question, system=system, max_tokens=AI_MAX_TOKENS_SQL_AGENT_QUERY)
+    raw_sql = llm.generate(prompt, system=system, max_tokens=AI_MAX_TOKENS_SQL_AGENT_QUERY)
     sql = _extract_sql(raw_sql)
+
+    if sql == _SENTINEL_ACCESS_DENIED:
+        return SQLResult(
+            answer="Access denied: you don't have permission to view this information.",
+            sql="",
+            rows=[],
+            row_count=0,
+        )
 
     if sql is None:
         return SQLResult(
-            answer="I cannot answer that question with the data available to you.",
+            answer="No data found to answer your question.",
             sql="",
             rows=[],
             row_count=0,
