@@ -26,17 +26,20 @@ _PATTERNS: list[tuple[str, re.Pattern]] = [
     ("PAN", re.compile(
         r"\b[A-Z]{5}[0-9]{4}[A-Z]\b",
     )),
-    # Aadhaar: 12 digits, optionally space/dash separated in groups of 4
+    # Aadhaar: exactly 12 digits in 4-4-4 groups separated by space or dash (separator required).
+    # Plain 12-digit run without separators is NOT matched to avoid false-positives
+    # on salary figures, timestamps, employee IDs, and other numeric data.
     ("AADHAAR", re.compile(
-        r"\b\d{4}[\s\-]?\d{4}[\s\-]?\d{4}\b",
+        r"\b\d{4}[\s\-]\d{4}[\s\-]\d{4}\b",
     )),
     # IFSC: 4 uppercase + '0' + 6 alphanumeric (e.g. HDFC0001234)
     ("IFSC", re.compile(
         r"\b[A-Z]{4}0[A-Z0-9]{6}\b",
     )),
-    # Credit/debit card: 16 digits with optional spaces or dashes between groups of 4
+    # Credit/debit card: 16 digits MUST have separators (space or dash) between groups of 4.
+    # Unseparated 16-digit runs are too common (employee codes, order numbers) to mask blindly.
     ("CARD", re.compile(
-        r"\b(?:\d{4}[\s\-]?){3}\d{4}\b",
+        r"\b\d{4}[\s\-]\d{4}[\s\-]\d{4}[\s\-]\d{4}\b",
     )),
     # Indian mobile: optional +91/91/0 prefix, then 10 digits starting with 6-9
     ("PHONE", re.compile(
