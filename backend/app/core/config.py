@@ -132,3 +132,18 @@ AI_MAX_TOKENS_ACTION_AGENT_SUMMARY = int(os.getenv("AI_MAX_TOKENS_ACTION_AGENT_S
 # Prior conversation turns (user+assistant pairs) sent to ALL agents so they
 # can resolve references like "her", "that project", etc. from recent context.
 AI_CONTEXT_TURNS = int(os.getenv("AI_CONTEXT_TURNS", "3"))
+
+# Number of agent-local turns (Tier 3) before auto-summarization fires.
+# At this threshold oldest turns are compressed → stored as Tier 2 session memory.
+AI_CONTEXT_SUMMARIZE_THRESHOLD = int(os.getenv("AI_CONTEXT_SUMMARIZE_THRESHOLD", "10"))
+
+# Max memory items (per tier) injected into a single prompt.
+# Caps context bloat — lower value = tighter prompts, higher = more context.
+AI_CONTEXT_MAX_MEMORY_ITEMS = int(os.getenv("AI_CONTEXT_MAX_MEMORY_ITEMS", "5"))
+
+# Hours before Tier 2 (session) and Tier 3 (agent) memories expire.
+# 0 = never expire. Tier 1 (user profile) never expires.
+AI_CONTEXT_MEMORY_TTL_HOURS = int(os.getenv("AI_CONTEXT_MEMORY_TTL_HOURS", "24"))
+
+# Max tokens for the memory extraction LLM call (runs at summarization threshold).
+AI_MAX_TOKENS_MEMORY_EXTRACT = int(os.getenv("AI_MAX_TOKENS_MEMORY_EXTRACT", "512"))
