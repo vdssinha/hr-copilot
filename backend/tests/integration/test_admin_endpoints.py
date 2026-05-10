@@ -108,7 +108,7 @@ class TestAdminRoles:
         r = client.get("/api/v1/admin/roles", headers=auth(admin_token))
         assert r.status_code == 200
         roles = {item["name"] for item in r.json()}
-        assert roles == {"EMPLOYEE", "MANAGER", "ADMIN"}
+        assert roles == {"EMPLOYEE", "MANAGER", "ADMIN", "HR", "C_LEVEL", "MARKETING"}
 
     def test_update_role_categories(self, client, admin_token):
         r = client.patch(
@@ -199,7 +199,7 @@ class TestAdminPolicies:
         r = client.post(
             "/api/v1/admin/policies/upload",
             data={"title": "Bad File", "category": "GENERAL"},
-            files={"file": ("file.docx", io.BytesIO(b"data"), "application/octet-stream")},
+            files={"file": ("file.xlsx", io.BytesIO(b"data"), "application/octet-stream")},
             headers=auth(admin_token),
         )
         assert r.status_code == 400
@@ -218,10 +218,12 @@ class TestAdminPolicies:
         policy = db_session.query(HRPolicy).filter_by(title="Test Leave Policy").first()
         if not policy:
             pytest.skip("Upload test did not create policy")
-        r = client.delete(f"/api/v1/admin/policies/{policy.id}", headers=auth(admin_token))
+        policy_id = policy.id
+        r = client.delete(f"/api/v1/admin/policies/{policy_id}", headers=auth(admin_token))
         assert r.status_code == 204
-        db_session.refresh(policy)
-        assert policy.is_active is False
+        db_session.expire_all()
+        gone = db_session.get(HRPolicy, policy_id)
+        assert gone is None, "Policy should be hard-deleted"
 
     def test_delete_nonexistent_policy(self, client, admin_token):
         r = client.delete("/api/v1/admin/policies/999999", headers=auth(admin_token))

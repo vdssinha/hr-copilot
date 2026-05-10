@@ -3,6 +3,10 @@ Shared fixtures: in-memory SQLite DB, TestClient, per-role employees + JWT token
 Uses StaticPool so all connections share the same in-memory database.
 """
 import pytest
+
+# test_live_all_roles.py is a standalone script that calls sys.exit() at module level.
+# Exclude it from pytest collection; run it directly: python tests/integration/test_live_all_roles.py
+collect_ignore = ["integration/test_live_all_roles.py"]
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
