@@ -1,13 +1,23 @@
 """
 Unified AI router — classifies user intent and dispatches to the correct sub-system.
+
+Routing strategy is controlled by AI_ROUTER_TYPE in config:
+  "semantic" — embedding cosine similarity only (fast, zero LLM cost)
+  "llm"      — original LLM classifier (context-aware, costs tokens)
+  "hybrid"   — semantic first; LLM fallback when score < AI_SEMANTIC_ROUTER_THRESHOLD
 """
 import json
 import re
+from functools import lru_cache
 from typing import Literal, TypedDict
 
 from sqlalchemy.orm import Session
 
-from app.core.config import AI_MAX_TOKENS_SMART_COPILOT_INTENT
+from app.core.config import (
+    AI_MAX_TOKENS_SMART_COPILOT_INTENT,
+    AI_ROUTER_TYPE,
+    AI_SEMANTIC_ROUTER_THRESHOLD,
+)
 from app.models.employee import Employee
 from app.services.ai import factory as _factory
 from app.services.ai.context import build_history_block
@@ -58,9 +68,36 @@ class RouteResult(TypedDict):
     intent: Intent
     confidence: float
     reason: str
+    router: str  # "semantic" | "llm" — which path produced this result
 
 
-def classify_intent(
+@lru_cache(maxsize=1)
+def _get_semantic_router():
+    """Build once, reuse across requests. lru_cache makes it a lazy singleton."""
+    from app.services.ai.intent_routes import ALL_ROUTES
+    from app.services.ai.semantic_router import SemanticRouter
+
+    encoder = _factory.get_embedder()
+    return SemanticRouter(
+        encoder=encoder,
+        routes=ALL_ROUTES,
+        threshold=AI_SEMANTIC_ROUTER_THRESHOLD,
+    )
+
+
+def _classify_via_semantic(message: str) -> RouteResult:
+    sr = _get_semantic_router()
+    name, score = sr(message)
+    intent: Intent = name if name in ("POLICY_QA", "SQL_QUERY", "HR_ACTION") else "UNKNOWN"
+    return RouteResult(
+        intent=intent,
+        confidence=round(score, 4),
+        reason=f"Semantic match (cosine={score:.3f})",
+        router="semantic",
+    )
+
+
+def _classify_via_llm(
     message: str,
     history: list = None,
     db=None,
@@ -75,7 +112,6 @@ def classify_intent(
     system = _CLASSIFY_SYSTEM.format(memory_section=mem)
 
     raw = llm.generate(prompt, system=system, max_tokens=AI_MAX_TOKENS_SMART_COPILOT_INTENT)
-
     raw = raw.strip()
     raw = re.sub(r"```(?:json)?", "", raw, flags=re.IGNORECASE).strip("` \n")
 
@@ -88,14 +124,33 @@ def classify_intent(
             intent=intent,
             confidence=float(parsed.get("confidence", 0.5)),
             reason=parsed.get("reason", ""),
+            router="llm",
         )
     except (json.JSONDecodeError, ValueError):
-        # Truncated response (reasoning model used most of the token budget) —
-        # extract intent via regex before giving up.
         m = re.search(r'"intent"\s*:\s*"(POLICY_QA|SQL_QUERY|HR_ACTION|UNKNOWN)"', raw)
         if m:
-            return RouteResult(intent=m.group(1), confidence=0.5, reason="Parsed from truncated response.")
-        return RouteResult(intent="UNKNOWN", confidence=0.0, reason="Could not parse intent.")
+            return RouteResult(intent=m.group(1), confidence=0.5, reason="Parsed from truncated response.", router="llm")
+        return RouteResult(intent="UNKNOWN", confidence=0.0, reason="Could not parse intent.", router="llm")
+
+
+def classify_intent(
+    message: str,
+    history: list = None,
+    db=None,
+    user_id: int = None,
+    session_id: str = None,
+) -> RouteResult:
+    if AI_ROUTER_TYPE == "semantic":
+        return _classify_via_semantic(message)
+
+    if AI_ROUTER_TYPE == "llm":
+        return _classify_via_llm(message, history, db, user_id, session_id)
+
+    # hybrid: semantic first, LLM fallback on low confidence
+    result = _classify_via_semantic(message)
+    if result["confidence"] >= AI_SEMANTIC_ROUTER_THRESHOLD and result["intent"] != "UNKNOWN":
+        return result
+    return _classify_via_llm(message, history, db, user_id, session_id)
 
 
 def route_and_answer(db: Session, user: Employee, message: str, history: list = None, session_id: str = None) -> dict:

@@ -42,6 +42,17 @@ EMBEDDER_API_KEY  = os.getenv(_EMBEDDER_SETTINGS[AI_EMBEDDER_PROVIDER]["api_key_
                     or os.getenv("ANTHROPIC_API_KEY", "")  # voyage falls back to Anthropic key
 EMBEDDER_BASE_URL = os.getenv("OPENAI_BASE_URL") or None   # used only when provider=openai
 
+# ── Router Strategy ───────────────────────────────────────────────────────────
+# Options: "semantic" | "llm" | "hybrid"
+#
+# "semantic" — embedding cosine-similarity only; fast, zero LLM cost.
+# "llm"      — original LLM-based classifier; context-aware, slower.
+# "hybrid"   — semantic first; falls back to LLM when score < threshold.
+#              Best of both: cheap for clear intents, accurate for ambiguous ones.
+
+AI_ROUTER_TYPE               = os.getenv("AI_ROUTER_TYPE", "hybrid")
+AI_SEMANTIC_ROUTER_THRESHOLD = float(os.getenv("AI_SEMANTIC_ROUTER_THRESHOLD", "0.75"))
+
 # ── Vector Store ──────────────────────────────────────────────────────────────
 # Options: "chroma" | "faiss"
 
