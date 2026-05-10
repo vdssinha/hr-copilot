@@ -99,9 +99,14 @@ def _expiry() -> Optional[datetime]:
     return datetime.utcnow() + timedelta(hours=AI_CONTEXT_MEMORY_TTL_HOURS)
 
 
+_SENSITIVE_PATTERN = re.compile(
+    r"\b(" + "|".join(re.escape(t) for t in _SENSITIVE_TERMS) + r")\b",
+    re.IGNORECASE,
+)
+
+
 def _is_safe(text: str) -> bool:
-    lower = text.lower()
-    return not any(term in lower for term in _SENSITIVE_TERMS)
+    return not _SENSITIVE_PATTERN.search(text)
 
 
 def _parse_json_list(raw: str) -> List[str]:
