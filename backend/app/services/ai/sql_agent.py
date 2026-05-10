@@ -2,9 +2,12 @@
 NL→SQL agent with schema-aware generation, role-based access filtering,
 and guardrail validation before execution.
 """
+import logging
 import re
 from dataclasses import dataclass
 from typing import TypedDict, List, Any, Optional, Union
+
+_log = logging.getLogger(__name__)
 
 from sqlalchemy import text
 from sqlalchemy.orm import Session
@@ -297,10 +300,10 @@ def run_sql_query(db: Session, user: Employee, question: str, history: list = No
         rows = _rows_to_dicts(result)
         rows = scrub_forbidden_columns(rows, role=user.role)
     except Exception:
-        # Never leak raw DB errors
+        _log.exception("SQL execution failed user_id=%s sql=%r", user.id, validated_sql)
         return SQLResult(
             answer="The query could not be executed. Please rephrase your question.",
-            sql=validated_sql,
+            sql="",
             rows=[],
             row_count=0,
         )
