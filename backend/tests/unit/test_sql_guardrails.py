@@ -62,13 +62,19 @@ def test_passes_select_with_joins():
     "pan_name",
     "pan_dob",
     "date_of_birth",
-    "current_salary_usd",
     "profile_photo_path",
     "profile_photo_mime",
 ])
 def test_blocks_all_forbidden_columns(col):
     with pytest.raises(SQLGuardError, match=col):
         validate_sql(f"SELECT {col} FROM employees")
+
+
+def test_current_salary_usd_not_guardrail_blocked():
+    # current_salary_usd is RBAC-controlled at the LLM/prompt level, not blocked by the guardrail.
+    # Guardrail is not the right place — access rules in sql_agent enforce per-role restrictions.
+    result = validate_sql("SELECT current_salary_usd FROM employees WHERE id = 1")
+    assert result is not None
 
 
 def test_forbidden_column_case_insensitive():
@@ -128,15 +134,22 @@ def test_strips_trailing_semicolon():
 def test_scrub_removes_forbidden_keys():
     rows = [
         {"id": 1, "name": "Alice", "hashed_password": "secret", "bank_account_number": "12345"},
-        {"id": 2, "name": "Bob", "current_salary_usd": 100000.0},
+        {"id": 2, "name": "Bob", "pan_number": "ABCDE1234F"},
     ]
     scrubbed = scrub_forbidden_columns(rows)
     for row in scrubbed:
         assert "hashed_password" not in row
         assert "bank_account_number" not in row
-        assert "current_salary_usd" not in row
+        assert "pan_number" not in row
         assert "id" in row
         assert "name" in row
+
+
+def test_scrub_passes_current_salary_usd():
+    # current_salary_usd is RBAC-controlled, not a guardrail-scrubbed column.
+    rows = [{"id": 1, "name": "Bob", "current_salary_usd": 100000.0}]
+    scrubbed = scrub_forbidden_columns(rows)
+    assert scrubbed[0]["current_salary_usd"] == 100000.0
 
 
 def test_scrub_passthrough_clean_rows():
