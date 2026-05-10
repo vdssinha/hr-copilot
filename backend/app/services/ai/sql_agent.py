@@ -3,7 +3,8 @@ NL→SQL agent with schema-aware generation, role-based access filtering,
 and guardrail validation before execution.
 """
 import re
-from typing import TypedDict, List, Any, Optional
+from dataclasses import dataclass
+from typing import TypedDict, List, Any, Optional, Union
 
 from sqlalchemy import text
 from sqlalchemy.orm import Session
@@ -197,25 +198,29 @@ _SENTINEL_ACCESS_DENIED = "ACCESS_DENIED"
 _SENTINEL_CANNOT_ANSWER = "CANNOT_ANSWER"
 
 
-_SENTINEL_DIRECT_ANSWER = "__DIRECT__"
+@dataclass(frozen=True)
+class _DirectAnswer:
+    """LLM answered from injected context (own salary/DOB or bank/PAN redirect)."""
+    text: str
 
 
-def _extract_sql(raw: str) -> Optional[str]:
-    """
-    Returns:
-      SQL string      — valid SELECT to execute
-      SENTINEL_ACCESS_DENIED  — blocked by access rules
-      SENTINEL_DIRECT_ANSWER  — LLM gave a prose answer (own-data context / bank-PAN redirect)
-      None            — CANNOT_ANSWER / no SQL found
-    """
+@dataclass(frozen=True)
+class _AccessDenied:
+    """Query blocked by access rules."""
+
+
+# Return type for _extract_sql: SQL string | _DirectAnswer | _AccessDenied | None
+_SqlExtractResult = Union[str, _DirectAnswer, _AccessDenied, None]
+
+
+def _extract_sql(raw: str) -> _SqlExtractResult:
     raw = raw.strip()
     raw = re.sub(r"```(?:sql)?", "", raw, flags=re.IGNORECASE).strip("` \n")
     upper = raw.upper().strip()
 
     if upper == _SENTINEL_ACCESS_DENIED or upper.startswith(_SENTINEL_ACCESS_DENIED):
-        return _SENTINEL_ACCESS_DENIED
+        return _AccessDenied()
 
-    # Pure CANNOT_ANSWER sentinel → no data
     if upper == _SENTINEL_CANNOT_ANSWER:
         return None
 
@@ -224,12 +229,11 @@ def _extract_sql(raw: str) -> Optional[str]:
         return select_match.group(0).split(";")[0].strip()
 
     if _SENTINEL_ACCESS_DENIED in upper:
-        return _SENTINEL_ACCESS_DENIED
+        return _AccessDenied()
 
-    # No SELECT and not a pure sentinel → LLM produced a prose answer
-    # (own-data context reply or bank/PAN profile-page redirect)
+    # No SELECT found — LLM produced prose (own-data context reply or bank/PAN redirect)
     if raw and _SENTINEL_CANNOT_ANSWER not in upper:
-        return _SENTINEL_DIRECT_ANSWER + raw  # prefix lets caller recover the text
+        return _DirectAnswer(text=raw)
 
     return None
 
@@ -259,7 +263,7 @@ def run_sql_query(db: Session, user: Employee, question: str, history: list = No
     raw_sql = llm.generate(prompt, system=system, max_tokens=AI_MAX_TOKENS_SQL_AGENT_QUERY)
     sql = _extract_sql(raw_sql)
 
-    if sql == _SENTINEL_ACCESS_DENIED:
+    if isinstance(sql, _AccessDenied):
         return SQLResult(
             answer="Access denied: you don't have permission to view this information.",
             sql="",
@@ -267,10 +271,8 @@ def run_sql_query(db: Session, user: Employee, question: str, history: list = No
             row_count=0,
         )
 
-    if sql is not None and sql.startswith(_SENTINEL_DIRECT_ANSWER):
-        # LLM answered from injected context (own salary/DOB) or issued bank/PAN redirect
-        direct_text = sql[len(_SENTINEL_DIRECT_ANSWER):]
-        return SQLResult(answer=direct_text, sql="", rows=[], row_count=0)
+    if isinstance(sql, _DirectAnswer):
+        return SQLResult(answer=sql.text, sql="", rows=[], row_count=0)
 
     if sql is None:
         return SQLResult(
