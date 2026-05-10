@@ -29,7 +29,11 @@ def chat_policy(
     db: Session = Depends(get_db),
 ):
     try:
-        result = answer_policy_question(db, payload.message, user_role=current_user.role, policy_group=current_user.policy_group, history=[h.dict() for h in payload.history], session_id=payload.session_id, user_id=current_user.id)
+        message, blocked = get_pipeline().preprocess(payload.message, current_user)
+        if blocked:
+            log_ai_interaction(db, current_user, payload.message, AIIntent.UNKNOWN, ActionStatus.REFUSED, tool_name=blocked.route)
+            return APIResponse.ok({"answer": blocked.response, "sources": []})
+        result = answer_policy_question(db, message, user_role=current_user.role, policy_group=current_user.policy_group, history=[h.dict() for h in payload.history], session_id=payload.session_id, user_id=current_user.id)
         log_ai_interaction(
             db, current_user, payload.message,
             intent=AIIntent.POLICY_QA,
@@ -50,7 +54,11 @@ def chat_sql(
     db: Session = Depends(get_db),
 ):
     try:
-        result = run_sql_query(db, current_user, payload.message, history=[h.dict() for h in payload.history], session_id=payload.session_id)
+        message, blocked = get_pipeline().preprocess(payload.message, current_user)
+        if blocked:
+            log_ai_interaction(db, current_user, payload.message, AIIntent.UNKNOWN, ActionStatus.REFUSED, tool_name=blocked.route)
+            return APIResponse.ok({"answer": blocked.response, "sql": "", "rows": [], "row_count": 0})
+        result = run_sql_query(db, current_user, message, history=[h.dict() for h in payload.history], session_id=payload.session_id)
         status = ActionStatus.SUCCESS if result["rows"] else ActionStatus.REFUSED
         log_ai_interaction(
             db, current_user, payload.message,
@@ -72,7 +80,11 @@ def chat_actions(
     db: Session = Depends(get_db),
 ):
     try:
-        result = run_action(db, current_user, payload.message, history=[h.dict() for h in payload.history], session_id=payload.session_id)
+        message, blocked = get_pipeline().preprocess(payload.message, current_user)
+        if blocked:
+            log_ai_interaction(db, current_user, payload.message, AIIntent.UNKNOWN, ActionStatus.REFUSED, tool_name=blocked.route)
+            return APIResponse.ok({"answer": blocked.response, "success": False, "action": blocked.route, "data": None})
+        result = run_action(db, current_user, message, history=[h.dict() for h in payload.history], session_id=payload.session_id)
         log_ai_interaction(
             db, current_user, payload.message,
             intent=AIIntent.HR_ACTION,
@@ -164,10 +176,14 @@ def chat_langgraph(
     current_user: Employee = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    """LangGraph multi-agent orchestration — identical behaviour to /router but via graph."""
+    """LangGraph multi-agent orchestration — passes through guardrail pipeline then routes via graph."""
     try:
+        message, blocked = get_pipeline().preprocess(payload.message, current_user)
+        if blocked:
+            log_ai_interaction(db, current_user, payload.message, AIIntent.UNKNOWN, ActionStatus.REFUSED, tool_name=blocked.route)
+            return APIResponse.ok({"route": {"intent": "BLOCKED"}, "result": {"answer": blocked.response}, "guardrail": blocked.route})
         from app.services.ai.langgraph_agent import run_langgraph
-        result = run_langgraph(db, current_user, payload.message, history=[h.dict() for h in payload.history], session_id=payload.session_id)
+        result = run_langgraph(db, current_user, message, history=[h.dict() for h in payload.history], session_id=payload.session_id)
         route_intent = result["route"]["intent"]
         intent_map = {
             "POLICY_QA": AIIntent.POLICY_QA,
