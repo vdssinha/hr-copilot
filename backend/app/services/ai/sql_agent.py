@@ -92,10 +92,31 @@ ACCESS RULES
 {access_rules}
 
 ----------------------
+SENSITIVE DATA POLICY
+----------------------
+
+The following columns are NEVER accessible via SQL for any role:
+  bank_account_number, bank_account_name, bank_branch, bank_ifsc,
+  pan_number, pan_name, pan_dob, hashed_password,
+  profile_photo_path, profile_photo_mime
+
+If the user asks about bank account details, IFSC, or PAN/Aadhaar:
+  → Do NOT generate SQL. Respond exactly:
+    "For security, bank and PAN details are only viewable on your Profile page."
+
+The current user's own salary and date of birth are injected below.
+If the user asks about their OWN salary or date of birth, answer directly
+from that context — do NOT generate SQL for it.
+
+{own_data_section}
+
+----------------------
 DECISION RULE
 ----------------------
 
 - Clear, permitted query → generate SQL
+- User asks about own salary/DOB → answer from own-data context above, respond CANNOT_ANSWER for SQL
+- User asks about bank/PAN → respond with profile-page redirect, respond CANNOT_ANSWER for SQL
 - Ambiguous column or join → pick the most reasonable interpretation from schema
 - Access violation → ACCESS_DENIED
 - Unanswerable from available schema → CANNOT_ANSWER
@@ -152,26 +173,65 @@ def _build_access_rules(user: Employee, db: Session) -> str:
     )
 
 
+def _build_own_data_section(user: Employee) -> str:
+    """
+    Injects the current user's own salary and DOB into the system prompt so the
+    LLM can answer personal queries from context instead of generating SQL.
+    Bank/PAN are intentionally omitted — those are redirected to the profile page.
+    """
+    salary = (
+        f"${user.current_salary_usd:,.2f} USD/year"
+        if user.current_salary_usd is not None
+        else "not on record"
+    )
+    dob = str(user.date_of_birth) if user.date_of_birth is not None else "not on record"
+
+    return (
+        f"Current user's own data (employee_id={user.id}, name={user.name}):\n"
+        f"  - Salary: {salary}\n"
+        f"  - Date of birth: {dob}"
+    )
+
+
 _SENTINEL_ACCESS_DENIED = "ACCESS_DENIED"
 _SENTINEL_CANNOT_ANSWER = "CANNOT_ANSWER"
 
 
+_SENTINEL_DIRECT_ANSWER = "__DIRECT__"
+
+
 def _extract_sql(raw: str) -> Optional[str]:
+    """
+    Returns:
+      SQL string      — valid SELECT to execute
+      SENTINEL_ACCESS_DENIED  — blocked by access rules
+      SENTINEL_DIRECT_ANSWER  — LLM gave a prose answer (own-data context / bank-PAN redirect)
+      None            — CANNOT_ANSWER / no SQL found
+    """
     raw = raw.strip()
     raw = re.sub(r"```(?:sql)?", "", raw, flags=re.IGNORECASE).strip("` \n")
     upper = raw.upper().strip()
+
     if upper == _SENTINEL_ACCESS_DENIED or upper.startswith(_SENTINEL_ACCESS_DENIED):
         return _SENTINEL_ACCESS_DENIED
-    if upper == _SENTINEL_CANNOT_ANSWER or _SENTINEL_CANNOT_ANSWER in upper:
+
+    # Pure CANNOT_ANSWER sentinel → no data
+    if upper == _SENTINEL_CANNOT_ANSWER:
         return None
+
     select_match = re.search(r"\bSELECT\b.*", raw, re.IGNORECASE | re.DOTALL)
     if select_match:
-        raw = select_match.group(0)
-    elif _SENTINEL_ACCESS_DENIED in upper:
+        return select_match.group(0).split(";")[0].strip()
+
+    if _SENTINEL_ACCESS_DENIED in upper:
         return _SENTINEL_ACCESS_DENIED
-    else:
-        return None  # no valid SQL found — treat as CANNOT_ANSWER
-    return raw.split(";")[0].strip()
+
+    # No SELECT and not a pure sentinel → LLM produced a prose answer
+    # (own-data context reply or bank/PAN profile-page redirect)
+    if raw and _SENTINEL_CANNOT_ANSWER not in upper:
+        return _SENTINEL_DIRECT_ANSWER + raw  # prefix lets caller recover the text
+
+    return None
 
 
 def _rows_to_dicts(result) -> List[dict]:
@@ -184,7 +244,13 @@ def run_sql_query(db: Session, user: Employee, question: str, history: list = No
     mem = build_memory_section(db, user.id, session_id, "sql_agent")
     schema_block = "\n".join(_TABLE_SCHEMAS[t] for t in _ALLOWED_TABLES)
     access_rules = _build_access_rules(user, db)
-    system = _SYSTEM_TEMPLATE.format(schema=schema_block, access_rules=access_rules, memory_section=mem)
+    own_data_section = _build_own_data_section(user)
+    system = _SYSTEM_TEMPLATE.format(
+        schema=schema_block,
+        access_rules=access_rules,
+        own_data_section=own_data_section,
+        memory_section=mem,
+    )
 
     history_block = build_history_block(history or [])
     prompt = f"{history_block} {question}" if history_block else question
@@ -200,6 +266,11 @@ def run_sql_query(db: Session, user: Employee, question: str, history: list = No
             rows=[],
             row_count=0,
         )
+
+    if sql is not None and sql.startswith(_SENTINEL_DIRECT_ANSWER):
+        # LLM answered from injected context (own salary/DOB) or issued bank/PAN redirect
+        direct_text = sql[len(_SENTINEL_DIRECT_ANSWER):]
+        return SQLResult(answer=direct_text, sql="", rows=[], row_count=0)
 
     if sql is None:
         return SQLResult(
