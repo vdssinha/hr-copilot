@@ -15,6 +15,7 @@ from app.services.ai.action_agent import run_action
 from app.services.ai.audit import log_ai_interaction
 from app.services.ai.hr_data_rag import query_hr_data
 from app.services.ai.policy_rag import answer_policy_question, ingest_policies
+from app.services.ai.pipeline import get_pipeline
 from app.services.ai.router_agent import route_and_answer, classify_intent
 from app.services.ai.sql_agent import run_sql_query
 
@@ -92,18 +93,19 @@ def chat_router(
     db: Session = Depends(get_db),
 ):
     try:
-        result = route_and_answer(db, current_user, payload.message, history=[h.dict() for h in payload.history], session_id=payload.session_id)
+        result = get_pipeline().run(db, current_user, payload.message, history=[h.dict() for h in payload.history], session_id=payload.session_id)
         route_intent = result["route"]["intent"]
         intent_map = {
             "POLICY_QA": AIIntent.POLICY_QA,
             "SQL_QUERY": AIIntent.SQL_QUERY,
             "HR_ACTION": AIIntent.HR_ACTION,
         }
+        action_status = ActionStatus.REFUSED if route_intent == "BLOCKED" else ActionStatus.SUCCESS
         log_ai_interaction(
             db, current_user, payload.message,
             intent=intent_map.get(route_intent, AIIntent.UNKNOWN),
-            action_status=ActionStatus.SUCCESS,
-            tool_name="router",
+            action_status=action_status,
+            tool_name=result.get("guardrail") or "router",
         )
         return APIResponse.ok(result)
     except Exception as e:
@@ -193,9 +195,27 @@ def _ndjson(event_type: str, data: dict) -> str:
 def _stream_router(
     db: Session, user: Employee, message: str, history: list = None, session_id: str = None,
 ) -> Generator[str, None, None]:
+    yield _ndjson("status", {"message": "Checking guardrails…"})
+
+    # Run PII masking and guard checks before streaming the main pipeline
+    pipeline = get_pipeline()
+    processed = message
+    for t in pipeline.transformers:
+        processed = t.transform(processed)
+    for guard in pipeline.guards:
+        result = guard.check(processed, user)
+        if result and result.blocked:
+            yield _ndjson("result", {
+                "route": {"intent": "BLOCKED", "confidence": 1.0, "reason": f"Guardrail: {result.route}", "router": "guardrail"},
+                "result": {"answer": result.response},
+                "guardrail": result.route,
+            })
+            yield _ndjson("done", {})
+            return
+
     yield _ndjson("status", {"message": "Classifying intent…"})
 
-    route = classify_intent(message, history=history, db=db, user_id=user.id, session_id=session_id)
+    route = classify_intent(processed, history=history, db=db, user_id=user.id, session_id=session_id)
     intent = route["intent"]
     yield _ndjson("status", {"message": f"Intent: {intent} — {route['reason']}"})
 
@@ -203,17 +223,17 @@ def _stream_router(
         if intent == "POLICY_QA":
             yield _ndjson("status", {"message": "Searching HR policies…"})
             from app.services.ai.policy_rag import answer_policy_question
-            result = answer_policy_question(db, message, user_role=user.role, policy_group=user.policy_group, history=history, session_id=session_id, user_id=user.id)
+            result = answer_policy_question(db, processed, user_role=user.role, policy_group=user.policy_group, history=history, session_id=session_id, user_id=user.id)
             yield _ndjson("result", {"route": route, "result": dict(result)})
 
         elif intent == "SQL_QUERY":
             yield _ndjson("status", {"message": "Generating SQL query…"})
-            result = run_sql_query(db, user, message, history=history, session_id=session_id)
+            result = run_sql_query(db, user, processed, history=history, session_id=session_id)
             yield _ndjson("result", {"route": route, "result": dict(result)})
 
         elif intent == "HR_ACTION":
             yield _ndjson("status", {"message": "Processing HR action…"})
-            result = run_action(db, user, message, history=history, session_id=session_id)
+            result = run_action(db, user, processed, history=history, session_id=session_id)
             yield _ndjson("result", {"route": route, "result": dict(result)})
 
         else:
