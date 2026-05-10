@@ -210,7 +210,7 @@ def run_sql_query(db: Session, user: Employee, question: str, history: list = No
         )
 
     try:
-        validated_sql = validate_sql(sql)
+        validated_sql = validate_sql(sql, role=user.role)
     except SQLGuardError as e:
         return SQLResult(
             answer=f"That query is not permitted: {e}",
@@ -222,7 +222,7 @@ def run_sql_query(db: Session, user: Employee, question: str, history: list = No
     try:
         result = db.execute(text(validated_sql))
         rows = _rows_to_dicts(result)
-        rows = scrub_forbidden_columns(rows)
+        rows = scrub_forbidden_columns(rows, role=user.role)
     except Exception:
         # Never leak raw DB errors
         return SQLResult(
