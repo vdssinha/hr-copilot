@@ -45,8 +45,11 @@ _BLOCKED_KEYWORDS = re.compile(
 
 _MAX_ROWS = 100
 
-# Roles that may access contextual sensitive columns
-_PRIVILEGED_ROLES = {EmployeeRole.MANAGER, EmployeeRole.HR, EmployeeRole.C_LEVEL, EmployeeRole.ADMIN}
+# Roles that may access contextual sensitive columns (salary, DOB).
+# MARKETING is included because the SQL agent access rules already restrict
+# their salary queries to employee_id = current user — same as EMPLOYEE self-access,
+# but the LLM prompt explicitly permits it so the validator must agree.
+_PRIVILEGED_ROLES = {EmployeeRole.MARKETING, EmployeeRole.MANAGER, EmployeeRole.HR, EmployeeRole.C_LEVEL, EmployeeRole.ADMIN}
 
 
 class SQLGuardError(ValueError):
