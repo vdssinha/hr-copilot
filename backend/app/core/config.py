@@ -52,6 +52,10 @@ EMBEDDER_BASE_URL = os.getenv("OPENAI_BASE_URL") or None   # used only when prov
 
 AI_ROUTER_TYPE               = os.getenv("AI_ROUTER_TYPE", "hybrid")
 AI_SEMANTIC_ROUTER_THRESHOLD = float(os.getenv("AI_SEMANTIC_ROUTER_THRESHOLD", "0.75"))
+# Guardrail threshold is intentionally HIGHER than intent router threshold.
+# Legitimate HR queries ("my direct reports' salaries", "my bank account")
+# score 0.76–0.82 against exfiltration utterances — we must not block them.
+AI_GUARDRAIL_THRESHOLD       = float(os.getenv("AI_GUARDRAIL_THRESHOLD", "0.85"))
 
 # ── Vector Store ──────────────────────────────────────────────────────────────
 # Options: "chroma" | "faiss"

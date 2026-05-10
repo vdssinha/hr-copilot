@@ -82,12 +82,12 @@ def get_pipeline() -> GuardrailPipeline:
     from app.services.ai.middleware.guardrail import SemanticGuardrail
     from app.services.ai.middleware.pii import PIIMiddleware
     from app.services.ai.semantic_router import SemanticRouter
-    from app.core.config import AI_SEMANTIC_ROUTER_THRESHOLD
+    from app.core.config import AI_GUARDRAIL_THRESHOLD
 
     guardrail_router = SemanticRouter(
         encoder=_factory.get_embedder(),
         routes=ALL_GUARDRAIL_ROUTES,
-        threshold=AI_SEMANTIC_ROUTER_THRESHOLD,
+        threshold=AI_GUARDRAIL_THRESHOLD,
     )
 
     return GuardrailPipeline(
