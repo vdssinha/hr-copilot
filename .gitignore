@@ -33,3 +33,6 @@ out/
 
 # OS
 .DS_Store
+
+# Code review artifacts
+pr_reviews/
