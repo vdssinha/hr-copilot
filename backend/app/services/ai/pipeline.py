@@ -13,13 +13,12 @@ guardrail SemanticRouter are indexed exactly once at first request.
 from __future__ import annotations
 
 from functools import lru_cache
-from typing import List
+from typing import List, Optional, Tuple
 
 from sqlalchemy.orm import Session
 
 from app.models.employee import Employee
-from app.services.ai.middleware.base import Guard, InputTransformer
-from app.models.ai_audit_log import AIIntent, ActionStatus
+from app.services.ai.middleware.base import Guard, GuardResult, InputTransformer
 
 
 class GuardrailPipeline:
@@ -31,6 +30,21 @@ class GuardrailPipeline:
         self.transformers: List[InputTransformer] = transformers or []
         self.guards: List[Guard] = guards or []
 
+    def preprocess(self, message: str, user: Employee) -> Tuple[str, Optional[GuardResult]]:
+        """
+        Run PII transforms then guard checks.
+        Returns (processed_message, GuardResult) where GuardResult is non-None on rejection.
+        Used by both run() and the streaming path so logic stays in one place.
+        """
+        processed = message
+        for t in self.transformers:
+            processed = t.transform(processed)
+        for guard in self.guards:
+            result = guard.check(processed, user)
+            if result and result.blocked:
+                return processed, result
+        return processed, None
+
     def run(
         self,
         db: Session,
@@ -39,27 +53,20 @@ class GuardrailPipeline:
         history: list = None,
         session_id: str = None,
     ) -> dict:
-        # Step 1 — transform (PII masking etc.)
-        processed = message
-        for t in self.transformers:
-            processed = t.transform(processed)
+        processed, blocked = self.preprocess(message, user)
 
-        # Step 2 — guard checks
-        for guard in self.guards:
-            result = guard.check(processed, user)
-            if result and result.blocked:
-                return {
-                    "route": {
-                        "intent": "BLOCKED",
-                        "confidence": 1.0,
-                        "reason": f"Guardrail triggered: {result.route}",
-                        "router": "guardrail",
-                    },
-                    "result": {"answer": result.response},
-                    "guardrail": result.route,
-                }
+        if blocked:
+            return {
+                "route": {
+                    "intent": "BLOCKED",
+                    "confidence": 1.0,
+                    "reason": f"Guardrail triggered: {blocked.route}",
+                    "router": "guardrail",
+                },
+                "result": {"answer": blocked.response},
+                "guardrail": blocked.route,
+            }
 
-        # Step 3 — normal routing
         from app.services.ai.router_agent import route_and_answer
         return route_and_answer(db, user, processed, history=history, session_id=session_id)
 

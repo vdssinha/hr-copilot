@@ -197,21 +197,15 @@ def _stream_router(
 ) -> Generator[str, None, None]:
     yield _ndjson("status", {"message": "Checking guardrails…"})
 
-    # Run PII masking and guard checks before streaming the main pipeline
-    pipeline = get_pipeline()
-    processed = message
-    for t in pipeline.transformers:
-        processed = t.transform(processed)
-    for guard in pipeline.guards:
-        result = guard.check(processed, user)
-        if result and result.blocked:
-            yield _ndjson("result", {
-                "route": {"intent": "BLOCKED", "confidence": 1.0, "reason": f"Guardrail: {result.route}", "router": "guardrail"},
-                "result": {"answer": result.response},
-                "guardrail": result.route,
-            })
-            yield _ndjson("done", {})
-            return
+    processed, blocked = get_pipeline().preprocess(message, user)
+    if blocked:
+        yield _ndjson("result", {
+            "route": {"intent": "BLOCKED", "confidence": 1.0, "reason": f"Guardrail: {blocked.route}", "router": "guardrail"},
+            "result": {"answer": blocked.response},
+            "guardrail": blocked.route,
+        })
+        yield _ndjson("done", {})
+        return
 
     yield _ndjson("status", {"message": "Classifying intent…"})
 
