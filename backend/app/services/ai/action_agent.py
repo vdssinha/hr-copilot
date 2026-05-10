@@ -13,6 +13,7 @@ from sqlalchemy.orm import Session
 from app.core.config import AI_MAX_TOKENS_ACTION_AGENT_EXTRACT, AI_MAX_TOKENS_ACTION_AGENT_SUMMARY
 from app.services.ai.context import build_history_block
 from app.models.employee import Employee
+from app.services.ai.memory import build_memory_section, maybe_summarize, store_agent_turn
 from app.services.ai.api_tools import (
     apply_leave, check_leave_balance,
     approve_leave, reject_leave,
@@ -66,7 +67,9 @@ CLARIFY only if:
 - action is identified AND a truly required param (leave_type, start_date, end_date, ticket title, or similar) CANNOT be inferred from the full conversation so far
 - Ask for ALL missing required params in ONE question — never ask one at a time
 
-If the message doesn't match any action, use action: "UNKNOWN"."""
+If the message doesn't match any action, use action: "UNKNOWN".
+
+{memory_section}"""
 
 
 class ActionResult(TypedDict):
@@ -115,12 +118,16 @@ def _summarize_result(llm, action: str, message: str, result: dict) -> str:
     return llm.generate(prompt, system="Summarize HR action results clearly.", max_tokens=AI_MAX_TOKENS_ACTION_AGENT_SUMMARY)
 
 
-def run_action(db: Session, user: Employee, message: str, history: list = None) -> ActionResult:
+def run_action(db: Session, user: Employee, message: str, history: list = None, session_id: Optional[str] = None) -> ActionResult:
+    maybe_summarize(db, user.id, session_id, "action_agent", history or [])
+    mem = build_memory_section(db, user.id, session_id, "action_agent")
+    extract_system = _EXTRACT_SYSTEM.format(memory_section=mem)
+
     llm = _factory.get_llm_provider()
 
     # Step 1: Extract intent + params
     prompt = _build_extract_prompt(message, user, history=history)
-    raw = llm.generate(prompt, system=_EXTRACT_SYSTEM, max_tokens=AI_MAX_TOKENS_ACTION_AGENT_EXTRACT)
+    raw = llm.generate(prompt, system=extract_system, max_tokens=AI_MAX_TOKENS_ACTION_AGENT_EXTRACT)
 
     try:
         parsed = _parse_llm_json(raw)
@@ -187,6 +194,8 @@ def run_action(db: Session, user: Employee, message: str, history: list = None) 
 
     # Step 4: Summarize
     answer = _summarize_result(llm, action, message, result)
+    if session_id and result.get("success"):
+        store_agent_turn(db, user.id, session_id, "action_agent", f"Executed {action}: {message[:100]}")
     return ActionResult(
         answer=answer,
         action=action,

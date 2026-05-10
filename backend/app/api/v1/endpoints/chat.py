@@ -28,7 +28,7 @@ def chat_policy(
     db: Session = Depends(get_db),
 ):
     try:
-        result = answer_policy_question(db, payload.message, user_role=current_user.role, policy_group=current_user.policy_group, history=[h.dict() for h in payload.history])
+        result = answer_policy_question(db, payload.message, user_role=current_user.role, policy_group=current_user.policy_group, history=[h.dict() for h in payload.history], session_id=payload.session_id, user_id=current_user.id)
         log_ai_interaction(
             db, current_user, payload.message,
             intent=AIIntent.POLICY_QA,
@@ -49,7 +49,7 @@ def chat_sql(
     db: Session = Depends(get_db),
 ):
     try:
-        result = run_sql_query(db, current_user, payload.message, history=[h.dict() for h in payload.history])
+        result = run_sql_query(db, current_user, payload.message, history=[h.dict() for h in payload.history], session_id=payload.session_id)
         status = ActionStatus.SUCCESS if result["rows"] else ActionStatus.REFUSED
         log_ai_interaction(
             db, current_user, payload.message,
@@ -71,7 +71,7 @@ def chat_actions(
     db: Session = Depends(get_db),
 ):
     try:
-        result = run_action(db, current_user, payload.message, history=[h.dict() for h in payload.history])
+        result = run_action(db, current_user, payload.message, history=[h.dict() for h in payload.history], session_id=payload.session_id)
         log_ai_interaction(
             db, current_user, payload.message,
             intent=AIIntent.HR_ACTION,
@@ -92,7 +92,7 @@ def chat_router(
     db: Session = Depends(get_db),
 ):
     try:
-        result = route_and_answer(db, current_user, payload.message, history=[h.dict() for h in payload.history])
+        result = route_and_answer(db, current_user, payload.message, history=[h.dict() for h in payload.history], session_id=payload.session_id)
         route_intent = result["route"]["intent"]
         intent_map = {
             "POLICY_QA": AIIntent.POLICY_QA,
@@ -125,6 +125,9 @@ def chat_hr_data(
             employee_code=current_user.employee_code,
             employee_name=current_user.name,
             history=[h.dict() for h in payload.history],
+            db=db,
+            user_id=current_user.id,
+            session_id=payload.session_id,
         )
         log_ai_interaction(
             db, current_user, payload.message,
@@ -162,7 +165,7 @@ def chat_langgraph(
     """LangGraph multi-agent orchestration — identical behaviour to /router but via graph."""
     try:
         from app.services.ai.langgraph_agent import run_langgraph
-        result = run_langgraph(db, current_user, payload.message, history=[h.dict() for h in payload.history])
+        result = run_langgraph(db, current_user, payload.message, history=[h.dict() for h in payload.history], session_id=payload.session_id)
         route_intent = result["route"]["intent"]
         intent_map = {
             "POLICY_QA": AIIntent.POLICY_QA,
@@ -188,11 +191,11 @@ def _ndjson(event_type: str, data: dict) -> str:
 
 
 def _stream_router(
-    db: Session, user: Employee, message: str, history: list = None,
+    db: Session, user: Employee, message: str, history: list = None, session_id: str = None,
 ) -> Generator[str, None, None]:
     yield _ndjson("status", {"message": "Classifying intent…"})
 
-    route = classify_intent(message, history=history)
+    route = classify_intent(message, history=history, db=db, user_id=user.id, session_id=session_id)
     intent = route["intent"]
     yield _ndjson("status", {"message": f"Intent: {intent} — {route['reason']}"})
 
@@ -200,17 +203,17 @@ def _stream_router(
         if intent == "POLICY_QA":
             yield _ndjson("status", {"message": "Searching HR policies…"})
             from app.services.ai.policy_rag import answer_policy_question
-            result = answer_policy_question(db, message, user_role=user.role, policy_group=user.policy_group, history=history)
+            result = answer_policy_question(db, message, user_role=user.role, policy_group=user.policy_group, history=history, session_id=session_id, user_id=user.id)
             yield _ndjson("result", {"route": route, "result": dict(result)})
 
         elif intent == "SQL_QUERY":
             yield _ndjson("status", {"message": "Generating SQL query…"})
-            result = run_sql_query(db, user, message, history=history)
+            result = run_sql_query(db, user, message, history=history, session_id=session_id)
             yield _ndjson("result", {"route": route, "result": dict(result)})
 
         elif intent == "HR_ACTION":
             yield _ndjson("status", {"message": "Processing HR action…"})
-            result = run_action(db, user, message, history=history)
+            result = run_action(db, user, message, history=history, session_id=session_id)
             yield _ndjson("result", {"route": route, "result": dict(result)})
 
         else:
@@ -232,7 +235,7 @@ def chat_router_stream(
 ):
     """Streamable HTTP (NDJSON) version of /router — emits status events then the final result."""
     return StreamingResponse(
-        _stream_router(db, current_user, payload.message, history=[h.dict() for h in payload.history]),
+        _stream_router(db, current_user, payload.message, history=[h.dict() for h in payload.history], session_id=payload.session_id),
         media_type="application/x-ndjson",
         headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
     )

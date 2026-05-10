@@ -13,6 +13,7 @@ from app.services.ai.context import build_history_block
 from app.models.employee import Employee, EmployeeRole
 from app.services.ai import factory as _factory
 from app.services.ai.sql_guardrails import validate_sql, scrub_forbidden_columns, SQLGuardError
+from app.services.ai.memory import build_memory_section, maybe_summarize, store_agent_turn
 
 # Tables the SQL agent may query — sorted by safety
 _ALLOWED_TABLES = [
@@ -49,26 +50,23 @@ _TABLE_SCHEMAS = {
     ),
 }
 
-_SYSTEM_TEMPLATE = """You are a safe, read-only SQL generator for a SQLite HR database.
+_SYSTEM_TEMPLATE = """You are a read-only SQL generator for a SQLite HR database.
 
-Available tables and their columns (sensitive columns removed):
+Schema (only these tables and columns are available):
 {schema}
 
-Access rules for the current user:
+Access rules for this user:
 {access_rules}
 
-Rules you MUST follow:
-1. Generate only a single SELECT statement. No subqueries that mutate data.
-2. Never reference: hashed_password, bank_account_number, bank_account_name, bank_branch,
-   bank_ifsc, pan_number, pan_name, pan_dob, date_of_birth,
-   profile_photo_path, profile_photo_mime.
-3. Always apply the access filter WHERE clauses described in the access rules.
-   For current_salary_usd: only include it when access rules explicitly permit salary access.
-4. Return ONLY the SQL query — no explanation, no markdown fences, no semicolon at the end.
-5. If the access rules explicitly prohibit this query (e.g. requesting salary of a manager/peer,
-   data of employees outside your scope), respond with exactly: ACCESS_DENIED
-6. If the question cannot be answered for any other reason (ambiguous, unrelated to HR data),
-   respond with exactly: CANNOT_ANSWER"""
+Rules:
+1. Generate a single SELECT statement. No mutations, no DDL.
+2. Use only columns present in the schema above. Never reference columns not listed.
+3. Apply all access filters from the rules above — no exceptions.
+4. Return ONLY the raw SQL, no explanation, no fences, no trailing semicolon.
+5. If the access rules prohibit this query, respond exactly: ACCESS_DENIED
+6. If the question cannot be answered from available data, respond exactly: CANNOT_ANSWER
+
+{memory_section}"""
 
 
 class SQLResult(TypedDict):
@@ -147,10 +145,12 @@ def _rows_to_dicts(result) -> List[dict]:
     return [dict(zip(keys, row)) for row in result.fetchall()]
 
 
-def run_sql_query(db: Session, user: Employee, question: str, history: list = None) -> SQLResult:
+def run_sql_query(db: Session, user: Employee, question: str, history: list = None, session_id: Optional[str] = None) -> SQLResult:
+    maybe_summarize(db, user.id, session_id, "sql_agent", history or [])
+    mem = build_memory_section(db, user.id, session_id, "sql_agent")
     schema_block = "\n".join(_TABLE_SCHEMAS[t] for t in _ALLOWED_TABLES)
     access_rules = _build_access_rules(user, db)
-    system = _SYSTEM_TEMPLATE.format(schema=schema_block, access_rules=access_rules)
+    system = _SYSTEM_TEMPLATE.format(schema=schema_block, access_rules=access_rules, memory_section=mem)
 
     history_block = build_history_block(history or [])
     prompt = f"{history_block} {question}" if history_block else question
@@ -211,5 +211,8 @@ def run_sql_query(db: Session, user: Employee, question: str, history: list = No
             "Do not mention SQL or technical details."
         )
         answer = llm.generate(summary_prompt, system="Summarize HR data query results clearly.", max_tokens=AI_MAX_TOKENS_SQL_AGENT_SUMMARY)
+
+    if session_id:
+        store_agent_turn(db, user.id, session_id, "sql_agent", f"Queried: {question[:120]}")
 
     return SQLResult(answer=answer, sql=validated_sql, rows=rows, row_count=len(rows))

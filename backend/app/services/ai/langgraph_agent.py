@@ -27,6 +27,7 @@ class AgentState(TypedDict):
     db: Any          # sqlalchemy Session (not serialised)
     user: Any        # Employee ORM object (not serialised)
     history: list    # prior conversation turns for context resolution
+    session_id: Optional[str]
 
     # mutable across nodes
     intent: str
@@ -39,7 +40,13 @@ class AgentState(TypedDict):
 # ─── Nodes ───────────────────────────────────────────────────────────────────
 
 def node_classify(state: AgentState) -> dict:
-    route = classify_intent(state["message"], history=state.get("history", []))
+    route = classify_intent(
+        state["message"],
+        history=state.get("history", []),
+        db=state.get("db"),
+        user_id=state["user"].id if state.get("user") else None,
+        session_id=state.get("session_id"),
+    )
     return {
         "intent": route["intent"],
         "confidence": route["confidence"],
@@ -56,6 +63,8 @@ def node_policy_rag(state: AgentState) -> dict:
             user_role=user.role,
             policy_group=user.policy_group,
             history=state.get("history", []),
+            session_id=state.get("session_id"),
+            user_id=user.id,
         )
         return {"result": dict(result)}
     except Exception as e:
@@ -65,7 +74,7 @@ def node_policy_rag(state: AgentState) -> dict:
 def node_sql_agent(state: AgentState) -> dict:
     from app.services.ai.sql_agent import run_sql_query
     try:
-        result = run_sql_query(state["db"], state["user"], state["message"], history=state.get("history", []))
+        result = run_sql_query(state["db"], state["user"], state["message"], history=state.get("history", []), session_id=state.get("session_id"))
         return {"result": dict(result)}
     except Exception as e:
         return {"error": str(e), "result": {"answer": "Data query failed.", "sql": "", "rows": [], "row_count": 0}}
@@ -74,7 +83,7 @@ def node_sql_agent(state: AgentState) -> dict:
 def node_action_agent(state: AgentState) -> dict:
     from app.services.ai.action_agent import run_action
     try:
-        result = run_action(state["db"], state["user"], state["message"], history=state.get("history", []))
+        result = run_action(state["db"], state["user"], state["message"], history=state.get("history", []), session_id=state.get("session_id"))
         return {"result": dict(result)}
     except Exception as e:
         return {"error": str(e), "result": {"answer": "Action failed.", "action": "UNKNOWN", "success": False, "data": None}}
@@ -136,13 +145,14 @@ def build_hr_graph() -> StateGraph:
 _hr_graph = build_hr_graph()
 
 
-def run_langgraph(db: Session, user: Employee, message: str, history: list = None) -> dict:
+def run_langgraph(db: Session, user: Employee, message: str, history: list = None, session_id: Optional[str] = None) -> dict:
     """Run the HR copilot LangGraph and return a unified result dict."""
     initial_state: AgentState = {
         "message": message,
         "db": db,
         "user": user,
         "history": history or [],
+        "session_id": session_id,
         "intent": "",
         "confidence": 0.0,
         "reason": "",
