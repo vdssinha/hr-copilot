@@ -1,0 +1,89 @@
+"""
+GuardrailPipeline — production-grade middleware chain for the HR Copilot.
+
+Execution order for every incoming message:
+
+  1. InputTransformers  (PII masking, normalisation, …) — mutate message in order
+  2. Guards             (semantic guardrail) — first match short-circuits with rejection
+  3. route_and_answer() — normal intent routing + agent dispatch
+
+The pipeline exposes a lazy singleton via get_pipeline() so the embedder and
+guardrail SemanticRouter are indexed exactly once at first request.
+"""
+from __future__ import annotations
+
+from functools import lru_cache
+from typing import List
+
+from sqlalchemy.orm import Session
+
+from app.models.employee import Employee
+from app.services.ai.middleware.base import Guard, InputTransformer
+from app.models.ai_audit_log import AIIntent, ActionStatus
+
+
+class GuardrailPipeline:
+    def __init__(
+        self,
+        transformers: List[InputTransformer] = None,
+        guards: List[Guard] = None,
+    ) -> None:
+        self.transformers: List[InputTransformer] = transformers or []
+        self.guards: List[Guard] = guards or []
+
+    def run(
+        self,
+        db: Session,
+        user: Employee,
+        message: str,
+        history: list = None,
+        session_id: str = None,
+    ) -> dict:
+        # Step 1 — transform (PII masking etc.)
+        processed = message
+        for t in self.transformers:
+            processed = t.transform(processed)
+
+        # Step 2 — guard checks
+        for guard in self.guards:
+            result = guard.check(processed, user)
+            if result and result.blocked:
+                return {
+                    "route": {
+                        "intent": "BLOCKED",
+                        "confidence": 1.0,
+                        "reason": f"Guardrail triggered: {result.route}",
+                        "router": "guardrail",
+                    },
+                    "result": {"answer": result.response},
+                    "guardrail": result.route,
+                }
+
+        # Step 3 — normal routing
+        from app.services.ai.router_agent import route_and_answer
+        return route_and_answer(db, user, processed, history=history, session_id=session_id)
+
+
+@lru_cache(maxsize=1)
+def get_pipeline() -> GuardrailPipeline:
+    """
+    Lazy singleton.  Embedder and guardrail router are built once on first call.
+    Add / remove middleware here — no changes needed in endpoints.
+    """
+    from app.services.ai import factory as _factory
+    from app.services.ai.guardrail_routes import ALL_GUARDRAIL_ROUTES
+    from app.services.ai.middleware.guardrail import SemanticGuardrail
+    from app.services.ai.middleware.pii import PIIMiddleware
+    from app.services.ai.semantic_router import SemanticRouter
+    from app.core.config import AI_SEMANTIC_ROUTER_THRESHOLD
+
+    guardrail_router = SemanticRouter(
+        encoder=_factory.get_embedder(),
+        routes=ALL_GUARDRAIL_ROUTES,
+        threshold=AI_SEMANTIC_ROUTER_THRESHOLD,
+    )
+
+    return GuardrailPipeline(
+        transformers=[PIIMiddleware()],
+        guards=[SemanticGuardrail(guardrail_router)],
+    )
