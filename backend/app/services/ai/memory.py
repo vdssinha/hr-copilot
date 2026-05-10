@@ -262,7 +262,9 @@ def maybe_summarize(
     if not session_id:
         return
 
-    turn_count = len(history) // 2  # each pair = 1 turn
+    # Use DB Tier 3 count — not len(history) — so threshold fires correctly
+    # on session resumption where the client sends an empty or partial history.
+    turn_count = _count_agent_turns(db, user_id, session_id, agent_name)
     if turn_count < AI_CONTEXT_SUMMARIZE_THRESHOLD:
         return
 
