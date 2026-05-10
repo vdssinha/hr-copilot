@@ -119,8 +119,9 @@ AI_MAX_TOKENS_HR_DATA_RAG_ANSWER = int(os.getenv("AI_MAX_TOKENS_HR_DATA_RAG_ANSW
 
 # Used in: action_agent.py — LLM call that extracts structured tool-call JSON
 #   from the user message (intent + parameters). Nested JSON can be verbose.
-#   Must equal POLICY_RAG_ANSWER (see correlation above).
-AI_MAX_TOKENS_ACTION_AGENT_EXTRACT = int(os.getenv("AI_MAX_TOKENS_ACTION_AGENT_EXTRACT", "1024"))
+#   Raised to 2048: reasoning models (e.g. Gemma 4-31b) spend 800-1200 thinking
+#   tokens before emitting the ~200-token JSON output — 1024 causes truncation.
+AI_MAX_TOKENS_ACTION_AGENT_EXTRACT = int(os.getenv("AI_MAX_TOKENS_ACTION_AGENT_EXTRACT", "2048"))
 
 # Used in: action_agent.py — LLM call that summarises the action result in
 #   plain English after execution. Always brief.

@@ -25,7 +25,7 @@ def apply_leave(
     try:
         start = date.fromisoformat(start_date)
         end = date.fromisoformat(end_date)
-    except ValueError:
+    except (ValueError, TypeError):
         return {"success": False, "error": "Invalid date format. Use YYYY-MM-DD."}
 
     if start > end:

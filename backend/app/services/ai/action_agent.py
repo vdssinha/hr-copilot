@@ -5,6 +5,7 @@ then dispatches to the appropriate backend API tool.
 """
 import json
 import re
+from datetime import date as _date
 from typing import Optional, TypedDict
 
 from sqlalchemy.orm import Session
@@ -21,18 +22,18 @@ from app.services.ai.api_tools import (
 from app.services.ai import factory as _factory
 from app.services.ai.permissions import can_perform, allowed_actions
 
-_EXTRACT_SYSTEM = """You are an HR task intent extractor. Given a user message and their allowed actions,
-extract the intended action and its parameters as JSON.
+_EXTRACT_SYSTEM = """You are an HR task intent extractor. Given a user message (plus prior conversation and today's date in the prompt), extract the intended action and its parameters as JSON.
 
 Respond ONLY with a JSON object in this exact format:
 {
-  "action": "<action_name or UNKNOWN>",
+  "action": "<action_name | UNKNOWN | CLARIFY>",
   "params": { ... },
-  "cannot_do_reason": "<if action not in allowed_actions, explain why; else null>"
+  "cannot_do_reason": "<if action not in allowed_actions, explain why; else null>",
+  "clarification_question": "<friendly question when truly required params are missing; else null>"
 }
 
-Available actions and their required params:
-- apply_leave: leave_type (CASUAL/SICK/ANNUAL/UNPAID), start_date (YYYY-MM-DD), end_date (YYYY-MM-DD), reason, is_half_day (bool), half_day_period (MORNING/AFTERNOON/null)
+Available actions and their parameters:
+- apply_leave: leave_type (CASUAL/SICK/ANNUAL/UNPAID), start_date (YYYY-MM-DD), end_date (YYYY-MM-DD), reason (str, optional), is_half_day (bool), half_day_period (MORNING/AFTERNOON/null)
 - check_leave_balance: year (optional int)
 - approve_leave: request_id (int)
 - reject_leave: request_id (int)
@@ -40,6 +41,30 @@ Available actions and their required params:
 - assign_ticket: ticket_id (int), assignee_id (int), status (optional)
 - create_announcement: title (str), content (str), category (GENERAL/HR/IT/FACILITIES/CULTURE), is_pinned (bool)
 - assign_employee_to_project: employee_id (int), project_id (int), role (str)
+
+SMART DEFAULTS — infer these without asking:
+- is_half_day: default false unless user says "half day", "morning", or "afternoon"
+- half_day_period: null unless user specifies morning/afternoon
+- reason: use "" (empty string) if not provided — do NOT ask for it
+- priority for tickets: default "MEDIUM" unless user specifies urgency
+- is_pinned for announcements: default false unless user says "pin" or "important"
+- leave_type: infer from context when obvious — "sick", "fever", "ill", "unwell" → SICK; "vacation", "holiday", "trip" → ANNUAL; "personal", "casual" → CASUAL
+
+DATE RESOLUTION — Today's date is provided below as "Today's date: YYYY-MM-DD".
+Convert relative dates using it:
+- "today" → today
+- "tomorrow" → today + 1 day
+- "day after tomorrow" → today + 2 days
+- "next Monday/Tuesday/..." → compute from today
+- "X days from today" → compute
+- "2 days" or "for 2 days" without explicit start → start = today, end = today + 1 day
+Always output YYYY-MM-DD.
+
+CONTEXT ACCUMULATION — Prior conversation is included. Parameters already provided in earlier turns are still valid. Collect all params across turns before deciding to CLARIFY.
+
+CLARIFY only if:
+- action is identified AND a truly required param (leave_type, start_date, end_date, ticket title, or similar) CANNOT be inferred from the full conversation so far
+- Ask for ALL missing required params in ONE question — never ask one at a time
 
 If the message doesn't match any action, use action: "UNKNOWN"."""
 
@@ -63,11 +88,13 @@ def _parse_llm_json(raw: str) -> dict:
 
 
 def _build_extract_prompt(message: str, user: Employee, history: list = None) -> str:
+    today = _date.today().isoformat()
     actions = sorted(allowed_actions(user))
     history_block = build_history_block(history or [])
     preamble = f"{history_block}\n" if history_block else ""
     return (
         f"{preamble}"
+        f"Today's date: {today}\n"
         f"User role: {user.role.value}\n"
         f"Allowed actions for this user: {actions}\n\n"
         f"User message: {message}"
@@ -106,8 +133,14 @@ def run_action(db: Session, user: Employee, message: str, history: list = None) 
     action = parsed.get("action", "UNKNOWN")
     params = parsed.get("params", {})
     cannot_do = parsed.get("cannot_do_reason")
+    clarification_question = parsed.get("clarification_question")
 
-    # Step 2: Permission check
+    # Step 2: Clarification needed — missing required params
+    if action == "CLARIFY":
+        question = clarification_question or "Could you provide more details? (e.g. leave type, dates)"
+        return ActionResult(answer=question, action="CLARIFY", success=False, data=None)
+
+    # Step 3: Permission check
     if action == "UNKNOWN":
         return ActionResult(
             answer="I'm not sure what action you'd like to perform. Could you be more specific?",

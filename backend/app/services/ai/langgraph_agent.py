@@ -39,7 +39,7 @@ class AgentState(TypedDict):
 # ─── Nodes ───────────────────────────────────────────────────────────────────
 
 def node_classify(state: AgentState) -> dict:
-    route = classify_intent(state["message"])
+    route = classify_intent(state["message"], history=state.get("history", []))
     return {
         "intent": route["intent"],
         "confidence": route["confidence"],

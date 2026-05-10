@@ -192,7 +192,7 @@ def _stream_router(
 ) -> Generator[str, None, None]:
     yield _ndjson("status", {"message": "Classifying intent…"})
 
-    route = classify_intent(message)
+    route = classify_intent(message, history=history)
     intent = route["intent"]
     yield _ndjson("status", {"message": f"Intent: {intent} — {route['reason']}"})
 
