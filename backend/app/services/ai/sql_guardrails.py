@@ -4,21 +4,23 @@ and enforces row limits before any query reaches the DB.
 
 Column access is split into two tiers:
 
-  ABSOLUTE_FORBIDDEN  — blocked for ALL roles, no exceptions.
+  ABSOLUTE_FORBIDDEN  — blocked for ALL roles at SQL validation time.
                         Credentials, bank details, PAN, photo paths.
+                        Also scrubbed from rows returned to the frontend.
 
-  CONTEXTUAL_SENSITIVE — salary and date of birth.
-                         EMPLOYEE: blocked via SQL (own data shown via profile context).
-                         MANAGER / ADMIN: allowed (team oversight / HR operations).
-
-Pass the current user's role to validate_sql() so the right ruleset applies.
+  LLM_MASKED          — salary and date of birth.
+                        Returned in raw rows to the frontend so the UI
+                        can display them, but replaced with [REDACTED]
+                        in any sample rows passed to the LLM for summary.
+                        Row-level scope (own vs team vs all) is enforced
+                        by per-role LLM access rules, not by the validator.
 """
 import re
 from typing import Optional
 
 from app.models.employee import EmployeeRole
 
-# Never exposed via SQL regardless of role
+# Never exposed via SQL, never returned to frontend, never in LLM context
 _ABSOLUTE_FORBIDDEN = frozenset({
     "hashed_password",
     "bank_account_number",
@@ -32,8 +34,9 @@ _ABSOLUTE_FORBIDDEN = frozenset({
     "profile_photo_mime",
 })
 
-# Blocked for EMPLOYEE role; allowed for MANAGER / ADMIN
-_CONTEXTUAL_SENSITIVE = frozenset({
+# Returned to frontend in raw rows; replaced with [REDACTED] in LLM summary calls.
+# Row-level access (own / direct-reports / all) is enforced by per-role LLM access rules.
+_LLM_MASKED_COLUMNS = frozenset({
     "current_salary_usd",
     "date_of_birth",
 })
@@ -45,21 +48,9 @@ _BLOCKED_KEYWORDS = re.compile(
 
 _MAX_ROWS = 100
 
-# Roles that may access contextual sensitive columns (salary, DOB).
-# MARKETING is included because the SQL agent access rules already restrict
-# their salary queries to employee_id = current user — same as EMPLOYEE self-access,
-# but the LLM prompt explicitly permits it so the validator must agree.
-_PRIVILEGED_ROLES = {EmployeeRole.MARKETING, EmployeeRole.MANAGER, EmployeeRole.HR, EmployeeRole.C_LEVEL, EmployeeRole.ADMIN}
-
 
 class SQLGuardError(ValueError):
     pass
-
-
-def _forbidden_for_role(role: Optional[EmployeeRole]) -> frozenset:
-    if role in _PRIVILEGED_ROLES:
-        return _ABSOLUTE_FORBIDDEN
-    return _ABSOLUTE_FORBIDDEN | _CONTEXTUAL_SENSITIVE
 
 
 def validate_sql(sql: str, role: Optional[EmployeeRole] = None) -> str:
@@ -69,7 +60,7 @@ def validate_sql(sql: str, role: Optional[EmployeeRole] = None) -> str:
 
     Args:
         sql:  Raw SQL string from the LLM.
-        role: Current user's role. Determines which columns are forbidden.
+        role: Current user's role (reserved for future role-specific rules).
     """
     sql = sql.strip().rstrip(";")
 
@@ -83,7 +74,7 @@ def validate_sql(sql: str, role: Optional[EmployeeRole] = None) -> str:
     if not re.match(r"^\s*SELECT\b", sql, re.IGNORECASE):
         raise SQLGuardError("Only SELECT queries are permitted.")
 
-    _check_forbidden_columns(sql, role)
+    _check_forbidden_columns(sql)
 
     if sql.count("(") != sql.count(")"):
         raise SQLGuardError("Generated SQL has unbalanced parentheses. Please rephrase your question.")
@@ -92,19 +83,31 @@ def validate_sql(sql: str, role: Optional[EmployeeRole] = None) -> str:
     return sql
 
 
-def _check_forbidden_columns(sql: str, role: Optional[EmployeeRole]) -> None:
-    forbidden = _forbidden_for_role(role)
+def _check_forbidden_columns(sql: str) -> None:
     lower = sql.lower()
-    for col in forbidden:
+    for col in _ABSOLUTE_FORBIDDEN:
         if re.search(r"\b" + re.escape(col) + r"\b", lower):
             raise SQLGuardError(f"Access to column '{col}' is not permitted.")
 
 
 def scrub_forbidden_columns(rows: list[dict], role: Optional[EmployeeRole] = None) -> list[dict]:
-    """Remove forbidden columns from result rows (defence-in-depth)."""
-    forbidden = _forbidden_for_role(role)
+    """Remove absolute-forbidden columns from result rows (defence-in-depth for frontend)."""
     return [
-        {k: v for k, v in row.items() if k not in forbidden}
+        {k: v for k, v in row.items() if k not in _ABSOLUTE_FORBIDDEN}
+        for row in rows
+    ]
+
+
+def mask_for_llm(rows: list[dict]) -> list[dict]:
+    """
+    Replace sensitive column values with [REDACTED] before passing sample rows
+    to the LLM for natural-language summary generation.
+
+    The unmasked rows are still returned to the frontend — this mask only
+    prevents actual salary/DOB figures from being transmitted to the LLM provider.
+    """
+    return [
+        {k: "[REDACTED]" if k in _LLM_MASKED_COLUMNS else v for k, v in row.items()}
         for row in rows
     ]
 
@@ -121,9 +124,8 @@ def _enforce_row_limit(sql: str) -> str:
 
 
 def safe_column_list(columns: Optional[list[str]] = None, role: Optional[EmployeeRole] = None) -> str:
-    """Return a safe comma-separated column list with forbidden columns excluded."""
+    """Return a safe comma-separated column list with absolute-forbidden columns excluded."""
     if not columns:
         return "*"
-    forbidden = _forbidden_for_role(role)
-    safe = [c for c in columns if c not in forbidden]
+    safe = [c for c in columns if c not in _ABSOLUTE_FORBIDDEN]
     return ", ".join(safe) if safe else "*"

@@ -133,8 +133,12 @@ def chat_hr_data(
 ):
     """Query employee HR data. Restricted to MANAGER and ADMIN roles."""
     try:
+        message, blocked = get_pipeline().preprocess(payload.message, current_user)
+        if blocked:
+            log_ai_interaction(db, current_user, payload.message, AIIntent.UNKNOWN, ActionStatus.REFUSED, tool_name=blocked.route)
+            return APIResponse.ok({"answer": blocked.response, "rows_found": 0, "rows": []})
         result = query_hr_data(
-            payload.message,
+            message,
             current_user.role,
             employee_code=current_user.employee_code,
             employee_name=current_user.name,
@@ -144,7 +148,7 @@ def chat_hr_data(
             session_id=payload.session_id,
         )
         log_ai_interaction(
-            db, current_user, payload.message,
+            db, current_user, message,
             intent=AIIntent.SQL_QUERY,
             action_status=ActionStatus.SUCCESS if result["rows_found"] else ActionStatus.REFUSED,
             tool_name="hr_data_rag",

@@ -16,7 +16,7 @@ from app.core.config import AI_MAX_TOKENS_SQL_AGENT_QUERY, AI_MAX_TOKENS_SQL_AGE
 from app.services.ai.context import build_history_block
 from app.models.employee import Employee, EmployeeRole
 from app.services.ai import factory as _factory
-from app.services.ai.sql_guardrails import validate_sql, scrub_forbidden_columns, SQLGuardError
+from app.services.ai.sql_guardrails import validate_sql, scrub_forbidden_columns, mask_for_llm, SQLGuardError
 from app.services.ai.memory import build_memory_section, maybe_summarize, store_agent_turn
 
 # Tables the SQL agent may query — sorted by safety
@@ -108,18 +108,14 @@ If the user asks about bank account details, IFSC, or PAN/Aadhaar:
   → Do NOT generate SQL. Respond exactly:
     "For security, bank and PAN details are only viewable on your Profile page."
 
-The current user's own salary and date of birth are injected below.
-If the user asks about their OWN salary or date of birth, answer directly
-from that context — do NOT generate SQL for it.
-
-{own_data_section}
+Salary (current_salary_usd) and date of birth (date_of_birth) may appear in query results.
+Generate the correct SQL — the system will handle display formatting.
 
 ----------------------
 DECISION RULE
 ----------------------
 
-- Clear, permitted query → generate SQL
-- User asks about own salary/DOB → answer from own-data context above, respond CANNOT_ANSWER for SQL
+- Clear, permitted query → generate SQL with correct access filters
 - User asks about bank/PAN → respond with profile-page redirect, respond CANNOT_ANSWER for SQL
 - Ambiguous column or join → pick the most reasonable interpretation from schema
 - Access violation → ACCESS_DENIED
@@ -140,7 +136,7 @@ def _build_access_rules(user: Employee, db: Session) -> str:
         label = user.role.value.title()
         return (
             f"{label} role: full read access to all allowed tables and all employees' data, "
-            f"including current_salary_usd for all employees."
+            f"including current_salary_usd and date_of_birth for all employees."
         )
 
     if user.role == EmployeeRole.MANAGER:
@@ -149,7 +145,7 @@ def _build_access_rules(user: Employee, db: Session) -> str:
             f"For the employees table: "
             f"  - Public fields (id, name, role, job_title, department_id, employment_type, status, manager_id, joining_date): "
             f"    no row filter needed — you may query any employee for org-chart lookups. "
-            f"  - current_salary_usd: only allowed for your own record (id = {user.id}) "
+            f"  - current_salary_usd and date_of_birth: only for your own record (id = {user.id}) "
             f"    or your direct reports (manager_id = {user.id}). "
             f"For other employee-specific tables (leave_requests, leave_balances, tickets, "
             f"employee_projects, employee_skills, job_history): "
@@ -158,43 +154,16 @@ def _build_access_rules(user: Employee, db: Session) -> str:
             f"For project/department catalog queries, no filter needed."
         )
 
-    if user.role == EmployeeRole.MARKETING:
-        return (
-            f"Marketing role (employee_id={user.id}). "
-            f"For employee-specific data (leave_requests, leave_balances, tickets, employee_projects, employee_skills, employees), "
-            f"always filter by employee_id = {user.id} or created_by_id = {user.id}. "
-            f"current_salary_usd may be queried only for employee_id = {user.id} (own record). "
-            f"For catalog queries (projects, departments, skills — read-only lists), no filter needed."
-        )
-
-    # EMPLOYEE — own data only, no salary access
+    # EMPLOYEE and MARKETING — own data only
     return (
-        f"Employee role (employee_id={user.id}). "
-        f"For employee-specific data (leave_requests, leave_balances, tickets, employee_projects, employee_skills, employees), "
+        f"{user.role.value.title()} role (employee_id={user.id}). "
+        f"For employee-specific data (leave_requests, leave_balances, tickets, "
+        f"employee_projects, employee_skills, employees, job_history): "
         f"always filter by employee_id = {user.id} or created_by_id = {user.id}. "
-        f"current_salary_usd may be queried only for employee_id = {user.id} (own record). "
+        f"current_salary_usd and date_of_birth may only be queried for employee_id = {user.id} (own record). "
         f"For catalog queries (projects, departments, skills — read-only lists), no filter needed."
     )
 
-
-def _build_own_data_section(user: Employee) -> str:
-    """
-    Injects the current user's own salary and DOB into the system prompt so the
-    LLM can answer personal queries from context instead of generating SQL.
-    Bank/PAN are intentionally omitted — those are redirected to the profile page.
-    """
-    salary = (
-        f"${user.current_salary_usd:,.2f} USD/year"
-        if user.current_salary_usd is not None
-        else "not on record"
-    )
-    dob = str(user.date_of_birth) if user.date_of_birth is not None else "not on record"
-
-    return (
-        f"Current user's own data (employee_id={user.id}, name={user.name}):\n"
-        f"  - Salary: {salary}\n"
-        f"  - Date of birth: {dob}"
-    )
 
 
 _SENTINEL_ACCESS_DENIED = "ACCESS_DENIED"
@@ -224,7 +193,7 @@ def _extract_sql(raw: str) -> _SqlExtractResult:
     if upper == _SENTINEL_ACCESS_DENIED or upper.startswith(_SENTINEL_ACCESS_DENIED):
         return _AccessDenied()
 
-    if upper == _SENTINEL_CANNOT_ANSWER:
+    if upper == _SENTINEL_CANNOT_ANSWER or upper.startswith(_SENTINEL_CANNOT_ANSWER):
         return None
 
     select_match = re.search(r"\bSELECT\b.*", raw, re.IGNORECASE | re.DOTALL)
@@ -251,11 +220,9 @@ def run_sql_query(db: Session, user: Employee, question: str, history: list = No
     mem = build_memory_section(db, user.id, session_id, "sql_agent")
     schema_block = "\n".join(_TABLE_SCHEMAS[t] for t in _ALLOWED_TABLES)
     access_rules = _build_access_rules(user, db)
-    own_data_section = _build_own_data_section(user)
     system = _SYSTEM_TEMPLATE.format(
         schema=schema_block,
         access_rules=access_rules,
-        own_data_section=own_data_section,
         memory_section=mem,
     )
 
@@ -312,13 +279,16 @@ def run_sql_query(db: Session, user: Employee, question: str, history: list = No
     if not rows:
         answer = "No results found for your query."
     else:
+        # Mask sensitive column values before passing to LLM — actual values stay in `rows`
+        masked_sample = mask_for_llm(rows[:3])
         summary_prompt = (
             f"The user asked: {question}\n"
             f"SQL executed: {validated_sql}\n"
             f"Row count: {len(rows)}\n"
-            f"First few rows (sample): {rows[:3]}\n\n"
+            f"First few rows (sample): {masked_sample}\n\n"
             "Write a concise 1-2 sentence natural language summary of these results. "
-            "Do not mention SQL or technical details."
+            "Do not mention SQL or technical details. "
+            "If values show [REDACTED], describe what the data contains without stating the values."
         )
         answer = llm.generate(summary_prompt, system="Summarize HR data query results clearly.", max_tokens=AI_MAX_TOKENS_SQL_AGENT_SUMMARY)
 
