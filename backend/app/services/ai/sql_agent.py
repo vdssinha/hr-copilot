@@ -135,8 +135,10 @@ def _build_access_rules(user: Employee, db: Session) -> str:
     if user.role in (EmployeeRole.ADMIN, EmployeeRole.HR, EmployeeRole.C_LEVEL):
         label = user.role.value.title()
         return (
-            f"{label} role: full read access to all allowed tables and all employees' data, "
-            f"including current_salary_usd and date_of_birth for all employees."
+            f"The current user's role is {label} (employee_id={user.id}). "
+            f"This role has full read access to all allowed tables and all employees' data, "
+            f"including current_salary_usd and date_of_birth for all employees. "
+            f"No row filters are needed — generate SQL that returns all requested rows."
         )
 
     if user.role == EmployeeRole.MANAGER:

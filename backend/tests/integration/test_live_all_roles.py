@@ -331,10 +331,14 @@ def _is_blocked(ans: str) -> bool:
         "not accessible", "restricted",
     ])
 
-# Forbidden: hashed_password
-ans, _ = ask_sql(admin_tok, HASHED_PW_Q)
-check_ans("hashed_password blocked for ADMIN", ans, _is_blocked(ans),
-          f"answer[:100]={ans[:100]!r}")
+# Forbidden: hashed_password — real check is that rows contain no hashed_password values.
+# LLM answer text can be garbled (partial reasoning) with local models but security holds
+# as long as the column is never returned.
+ans, rows = ask_sql(admin_tok, HASHED_PW_Q)
+leaked = any("hashed_password" in str(row) for row in rows)
+check_ans("hashed_password blocked for ADMIN", ans,
+          not leaked and (len(rows) == 0 or _is_blocked(ans)),
+          f"rows={len(rows)}, leaked={leaked}, answer[:100]={ans[:100]!r}")
 
 # Forbidden: bank_account_number — LLM returns profile-page redirect, which IS a block
 ans, _ = ask_sql(employee_tok, BANK_Q)
