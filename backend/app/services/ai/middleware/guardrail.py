@@ -1,8 +1,14 @@
 """
 Semantic guardrail middleware.
 
-Uses a SemanticRouter loaded with off_topic and harmful routes to detect
-and reject messages before they reach the main intent classifier or any LLM.
+Uses a SemanticRouter loaded with off_topic, jailbreak, and exfiltration routes
+to detect and reject messages before they reach the main intent classifier or LLM.
+
+Route blocking rules:
+  off_topic    — blocked for all roles
+  jailbreak    — blocked for all roles (injection, impersonation, destructive intent)
+  exfiltration — blocked for non-privileged roles only; ADMIN/HR/C_LEVEL bypass
+                 because bulk data access is legitimate for them
 """
 from __future__ import annotations
 
@@ -19,16 +25,23 @@ _REJECTION_MESSAGES: dict[str, str] = {
         "I can only assist with HR-related questions — policies, employee data, "
         "or HR tasks such as leave and tickets. Please rephrase your question."
     ),
-    "harmful": (
+    "jailbreak": (
+        "I cannot process that request. "
+        "If you believe this was flagged in error, contact your HR administrator."
+    ),
+    "exfiltration": (
         "I cannot process that request. "
         "If you believe this was flagged in error, contact your HR administrator."
     ),
 }
 
+# Roles with legitimate access to all employee data — skip exfiltration check.
+_EXFILTRATION_EXEMPT_ROLES: frozenset[str] = frozenset({"ADMIN", "HR", "C_LEVEL"})
+
 
 class SemanticGuardrail(Guard):
     """
-    Checks user input against guardrail routes (off_topic, harmful).
+    Checks user input against guardrail routes.
     Returns a GuardResult that short-circuits the pipeline on a match.
     """
 
@@ -37,10 +50,13 @@ class SemanticGuardrail(Guard):
 
     def check(self, message: str, user: "Employee") -> Optional[GuardResult]:
         name, _score = self.router(message)
-        if name in _REJECTION_MESSAGES:
-            return GuardResult(
-                blocked=True,
-                route=name,
-                response=_REJECTION_MESSAGES[name],
-            )
-        return None
+        if name not in _REJECTION_MESSAGES:
+            return None
+        # ADMIN/HR/C_LEVEL have legitimate bulk data access — skip exfiltration check.
+        if name == "exfiltration" and user.role.value in _EXFILTRATION_EXEMPT_ROLES:
+            return None
+        return GuardResult(
+            blocked=True,
+            route=name,
+            response=_REJECTION_MESSAGES[name],
+        )

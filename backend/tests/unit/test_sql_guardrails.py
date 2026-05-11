@@ -4,7 +4,7 @@ No DB or LLM needed.
 """
 import pytest
 from app.services.ai.sql_guardrails import (
-    validate_sql, scrub_forbidden_columns, SQLGuardError,
+    validate_sql, scrub_forbidden_columns, mask_for_llm, SQLGuardError,
 )
 
 
@@ -61,7 +61,6 @@ def test_passes_select_with_joins():
     "pan_number",
     "pan_name",
     "pan_dob",
-    "date_of_birth",
     "profile_photo_path",
     "profile_photo_mime",
 ])
@@ -71,9 +70,16 @@ def test_blocks_all_forbidden_columns(col):
 
 
 def test_current_salary_usd_not_guardrail_blocked():
-    # current_salary_usd is RBAC-controlled at the LLM/prompt level, not blocked by the guardrail.
-    # Guardrail is not the right place — access rules in sql_agent enforce per-role restrictions.
+    # current_salary_usd is in _LLM_MASKED_COLUMNS — returned to frontend, [REDACTED] in LLM.
+    # Row-level access enforced by per-role SQL access rules in sql_agent, not the guardrail.
     result = validate_sql("SELECT current_salary_usd FROM employees WHERE id = 1")
+    assert result is not None
+
+
+def test_date_of_birth_not_guardrail_blocked():
+    # date_of_birth is in _LLM_MASKED_COLUMNS — returned to frontend, [REDACTED] in LLM.
+    # Row-level access enforced by per-role SQL access rules in sql_agent, not the guardrail.
+    result = validate_sql("SELECT date_of_birth FROM employees WHERE id = 1")
     assert result is not None
 
 
@@ -160,3 +166,29 @@ def test_scrub_passthrough_clean_rows():
 
 def test_scrub_empty_list():
     assert scrub_forbidden_columns([]) == []
+
+
+# ─── mask_for_llm ─────────────────────────────────────────────────────────────
+
+def test_mask_redacts_salary_and_dob():
+    rows = [{"id": 1, "name": "Alice", "current_salary_usd": 90000, "date_of_birth": "1990-01-01"}]
+    masked = mask_for_llm(rows)
+    assert masked[0]["current_salary_usd"] == "[REDACTED]"
+    assert masked[0]["date_of_birth"] == "[REDACTED]"
+    assert masked[0]["name"] == "Alice"
+
+
+def test_mask_preserves_non_sensitive_fields():
+    rows = [{"id": 1, "name": "Bob", "role": "EMPLOYEE", "department_id": 3}]
+    masked = mask_for_llm(rows)
+    assert masked == rows
+
+
+def test_mask_does_not_mutate_original():
+    rows = [{"current_salary_usd": 75000}]
+    mask_for_llm(rows)
+    assert rows[0]["current_salary_usd"] == 75000
+
+
+def test_mask_empty_list():
+    assert mask_for_llm([]) == []
