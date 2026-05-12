@@ -57,7 +57,12 @@ def assign_ticket(
         except KeyError:
             pass
     db.commit()
-    return {"success": True, "data": {"id": ticket_id, "assigned_to_id": assignee_id}}
+    db.refresh(ticket)
+    return {"success": True, "data": {
+        "id": ticket.id,
+        "assigned_to_id": ticket.assigned_to_id,
+        "status": ticket.status.value,
+    }}
 
 
 def list_all_tickets(db: Session, actor: Employee, limit: int = 50) -> dict:
