@@ -1,5 +1,6 @@
 """Admin-only endpoints: user CRUD, role access management, category management, policy upload."""
 import os
+from datetime import datetime, timedelta
 from pathlib import Path
 from typing import List
 
@@ -10,7 +11,7 @@ from app.core.config import POLICY_UPLOAD_DIR
 from app.core.dependencies import get_current_user, require_role
 from app.core.security import hash_password
 from app.db.session import get_db
-from app.models.ai_audit_log import AIAuditLog
+from app.models.ai_audit_log import AIAuditLog, ActionStatus
 from app.models.announcement import Announcement
 from app.models.employee import Employee, EmployeeRole, EmploymentType, EmployeeStatus
 from app.models.job_history import JobHistory
@@ -38,6 +39,7 @@ from app.schemas.admin import (
 )
 from app.schemas.common import APIResponse
 from app.services.ai.document_loader import extract_text_bytes
+from sqlalchemy import func, case
 from app.services.ai.hr_data_rag import ingest_hr_data
 from app.services.ai.policy_rag import ingest_policies
 
@@ -408,3 +410,82 @@ def delete_policy_group(
     db.query(Employee).filter(Employee.policy_group == group_name).update({"policy_group": None})
     db.delete(group)
     db.commit()
+
+
+# ── AI Usage Dashboard ────────────────────────────────────────────────────────
+
+@router.get("/ai-stats", response_model=APIResponse)
+def ai_usage_stats(
+    days: int = 30,
+    _: Employee = Depends(_require_admin),
+    db: Session = Depends(get_db),
+) -> APIResponse:
+    since = datetime.utcnow() - timedelta(days=days)
+    base = db.query(AIAuditLog).filter(AIAuditLog.created_at >= since)
+
+    total = base.count()
+
+    # by intent
+    by_intent = [
+        {"intent": row[0].value if row[0] else "UNKNOWN", "count": row[1]}
+        for row in db.query(AIAuditLog.intent, func.count(AIAuditLog.id))
+                     .filter(AIAuditLog.created_at >= since)
+                     .group_by(AIAuditLog.intent)
+                     .order_by(func.count(AIAuditLog.id).desc())
+                     .all()
+    ]
+
+    # by tool
+    by_tool = [
+        {"tool": row[0] or "unknown", "count": row[1]}
+        for row in db.query(AIAuditLog.tool_name, func.count(AIAuditLog.id))
+                     .filter(AIAuditLog.created_at >= since)
+                     .group_by(AIAuditLog.tool_name)
+                     .order_by(func.count(AIAuditLog.id).desc())
+                     .all()
+    ]
+
+    # failed permission attempts (REFUSED)
+    refused_count = base.filter(AIAuditLog.action_status == ActionStatus.REFUSED).count()
+
+    # avg latency (exclude NULLs)
+    avg_lat = db.query(func.avg(AIAuditLog.latency_ms))\
+                .filter(AIAuditLog.created_at >= since, AIAuditLog.latency_ms.isnot(None))\
+                .scalar()
+
+    # RAG no-answer rate: policy_rag + hr_data_rag calls where status=REFUSED / total RAG calls
+    rag_tools = ["policy_rag", "hr_data_rag"]
+    rag_total = base.filter(AIAuditLog.tool_name.in_(rag_tools)).count()
+    rag_no_answer = base.filter(
+        AIAuditLog.tool_name.in_(rag_tools),
+        AIAuditLog.action_status == ActionStatus.REFUSED,
+    ).count()
+    rag_no_answer_rate = round(rag_no_answer / rag_total * 100, 1) if rag_total else 0.0
+
+    # SQL blocked count
+    sql_blocked = base.filter(
+        AIAuditLog.tool_name == "sql_agent",
+        AIAuditLog.action_status == ActionStatus.REFUSED,
+    ).count()
+
+    # requests per day (last N days)
+    daily = []
+    for i in range(min(days, 14), -1, -1):
+        day_start = datetime.utcnow().replace(hour=0, minute=0, second=0, microsecond=0) - timedelta(days=i)
+        day_end = day_start + timedelta(days=1)
+        count = db.query(AIAuditLog)\
+                  .filter(AIAuditLog.created_at >= day_start, AIAuditLog.created_at < day_end)\
+                  .count()
+        daily.append({"date": day_start.strftime("%Y-%m-%d"), "count": count})
+
+    return APIResponse.ok({
+        "period_days": days,
+        "total_requests": total,
+        "refused_count": refused_count,
+        "avg_latency_ms": round(avg_lat, 1) if avg_lat else None,
+        "rag_no_answer_rate_pct": rag_no_answer_rate,
+        "sql_blocked_count": sql_blocked,
+        "by_intent": by_intent,
+        "by_tool": by_tool,
+        "daily": daily,
+    })
