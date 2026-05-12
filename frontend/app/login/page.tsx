@@ -28,6 +28,13 @@ const DEMO_ACCOUNTS = [
     password: "Employee@1234",
     color: "bg-emerald-50 text-emerald-700 border-emerald-200",
   },
+  {
+    label: "kavya.sundaramoorthy",
+    role: "c-level",
+    email: "kavya.sundaramoorthy@novaworks.in",
+    password: "CLevel@1234",
+    color: "bg-purple-50 text-purple-700 border-purple-200",
+  },
 ];
 
 const FEATURES = [
