@@ -40,6 +40,16 @@ class UpdateTicketRequest(BaseModel):
 
 # ─── Endpoints ────────────────────────────────────────────────────────────────
 
+@router.get("", response_model=APIResponse)
+def list_tickets(
+    limit: int = 50,
+    current_user: Employee = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> APIResponse:
+    result = ticket_service.list_all_tickets(db=db, actor=current_user, limit=limit)
+    return APIResponse.ok(result["data"])
+
+
 @router.post("", response_model=APIResponse, status_code=status.HTTP_201_CREATED)
 def create_ticket(
     body: CreateTicketRequest,

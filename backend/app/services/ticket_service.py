@@ -60,6 +60,29 @@ def assign_ticket(
     return {"success": True, "data": {"id": ticket_id, "assigned_to_id": assignee_id}}
 
 
+def list_all_tickets(db: Session, actor: Employee, limit: int = 50) -> dict:
+    """MANAGER/HR/ADMIN/C_LEVEL: all tickets. EMPLOYEE: own only."""
+    privileged = {EmployeeRole.MANAGER, EmployeeRole.HR, EmployeeRole.ADMIN, EmployeeRole.C_LEVEL}
+    if actor.role not in privileged:
+        return check_ticket_status(db=db, user=actor, limit=limit)
+
+    tickets = db.query(Ticket).order_by(Ticket.created_at.desc()).limit(limit).all()
+    data = [
+        {
+            "id": t.id,
+            "title": t.title,
+            "status": t.status.value,
+            "priority": t.priority.value,
+            "category": t.category.value,
+            "created_by_id": t.created_by_id,
+            "assigned_to_id": t.assigned_to_id,
+            "created_at": t.created_at.isoformat() if t.created_at else None,
+        }
+        for t in tickets
+    ]
+    return {"success": True, "data": data}
+
+
 def check_ticket_status(db: Session, user: Employee, limit: int = 20) -> dict:
     """Returns own tickets ordered by created_at DESC."""
     tickets = (
