@@ -128,7 +128,7 @@ export function PendingApprovals({ token }: PendingApprovalsProps) {
                     {req.start_date} → {req.end_date}
                   </p>
                   {req.reason && (
-                    <p className="text-xs text-slate-500 mt-1 italic truncate">"{req.reason}"</p>
+                    <p className="text-xs text-slate-500 mt-1 italic truncate">&quot;{req.reason}&quot;</p>
                   )}
                 </div>
 

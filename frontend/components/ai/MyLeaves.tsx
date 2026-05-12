@@ -84,7 +84,7 @@ export function MyLeaves({ token }: MyLeavesProps) {
           <div className="flex flex-col items-center justify-center py-16 text-slate-400">
             <Calendar className="h-10 w-10 mb-3 text-slate-300" />
             <p className="text-sm font-medium">No leave requests</p>
-            <p className="text-xs mt-1">You haven't applied for any leave yet.</p>
+            <p className="text-xs mt-1">You have not applied for any leave yet.</p>
           </div>
         )}
 
@@ -108,7 +108,7 @@ export function MyLeaves({ token }: MyLeavesProps) {
                     {req.start_date} → {req.end_date}
                   </p>
                   {req.reason && (
-                    <p className="text-xs text-slate-500 mt-0.5 italic truncate">"{req.reason}"</p>
+                    <p className="text-xs text-slate-500 mt-0.5 italic truncate">&quot;{req.reason}&quot;</p>
                   )}
                 </div>
                 <p className="text-xs text-slate-400 shrink-0">
