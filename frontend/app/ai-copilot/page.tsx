@@ -19,17 +19,31 @@ type Mode = "router" | "policy" | "sql" | "actions" | "hr-data" | "my-leaves" | 
 
 const MANAGER_ROLES = new Set(["MANAGER", "HR", "ADMIN", "C_LEVEL"]);
 
-const ALL_MODES: { id: Mode; label: string; description: string; icon: React.ElementType; managerOnly?: boolean }[] = [
-  { id: "router",             label: "Smart Copilot",       description: "Auto-routes to the right assistant",       icon: Zap },
-  { id: "policy",             label: "HR Policy",           description: "Answer HR policy questions",               icon: FileText },
-  { id: "sql",                label: "People & Data",       description: "Query employees, projects, skills",        icon: Database },
-  { id: "actions",            label: "HR Tasks",            description: "Apply leave, create tickets, and more",    icon: ListTodo },
-  { id: "hr-data",            label: "HR Employee Data",    description: "Semantic search over employee records",    icon: Users },
-  { id: "my-leaves",          label: "My Leaves",           description: "View your leave history and status",       icon: Calendar },
-  { id: "announcements",      label: "Announcements",       description: "Company-wide announcements",               icon: Megaphone },
-  { id: "tickets",            label: "Tickets",             description: "View and track support tickets",           icon: Ticket },
-  { id: "projects",           label: "Projects",            description: "View project assignments",                 icon: FolderKanban },
-  { id: "pending-approvals",  label: "Pending Approvals",   description: "Approve or reject team leave requests",    icon: ClipboardCheck, managerOnly: true },
+const ALL_MODES: {
+  id: Mode; icon: React.ElementType; managerOnly?: boolean;
+  label: string; description: string;
+  managerLabel?: string; managerDescription?: string;
+}[] = [
+  { id: "router",             label: "Smart Copilot",       description: "Auto-routes to the right assistant",          icon: Zap },
+  { id: "policy",             label: "HR Policy",           description: "Answer HR policy questions",                  icon: FileText },
+  { id: "sql",                label: "People & Data",       description: "Query employees, projects, skills",           icon: Database },
+  { id: "actions",            label: "HR Tasks",            description: "Apply leave, create tickets, and more",       icon: ListTodo },
+  { id: "hr-data",            label: "HR Employee Data",    description: "Semantic search over employee records",       icon: Users },
+  { id: "my-leaves",          label: "My Leaves",           description: "View your leave history and status",          icon: Calendar },
+  { id: "announcements",      label: "Announcements",       description: "Company-wide announcements",                  icon: Megaphone },
+  {
+    id: "tickets",
+    label: "My Tickets",             description: "Track your support tickets",
+    managerLabel: "All Tickets",     managerDescription: "View and manage all support tickets",
+    icon: Ticket,
+  },
+  {
+    id: "projects",
+    label: "My Projects",            description: "View your project assignments",
+    managerLabel: "All Projects",    managerDescription: "View and manage all projects",
+    icon: FolderKanban,
+  },
+  { id: "pending-approvals",  label: "Pending Approvals",   description: "Approve or reject team leave requests",       icon: ClipboardCheck, managerOnly: true },
 ];
 
 const ROLE_COLORS: Record<string, string> = {
@@ -72,7 +86,13 @@ export default function AICopilotPage() {
   if (!ready) return null;
 
   const isManager = MANAGER_ROLES.has(userRole);
-  const MODES = ALL_MODES.filter((m) => !m.managerOnly || isManager);
+  const MODES = ALL_MODES
+    .filter((m) => !m.managerOnly || isManager)
+    .map((m) => ({
+      ...m,
+      label:       (isManager && m.managerLabel)       ? m.managerLabel       : m.label,
+      description: (isManager && m.managerDescription) ? m.managerDescription : m.description,
+    }));
   const activeMode = MODES.find((m) => m.id === mode) ?? MODES[0];
 
   return (
