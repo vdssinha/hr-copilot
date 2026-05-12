@@ -12,10 +12,10 @@ import pytest
 from tests.integration.config import BASE_URL
 
 
-def _chat_actions(message: str, token: str, timeout: int = 150) -> dict:
+def _chat_actions(message: str, token: str, timeout: int = 150, confirmed: bool = False) -> dict:
     resp = requests.post(
         f"{BASE_URL}/api/v1/chat/actions",
-        json={"message": message},
+        json={"message": message, "confirmed": confirmed},
         headers={"Authorization": f"Bearer {token}"},
         timeout=timeout,
     )
@@ -59,12 +59,16 @@ class TestAnnouncementActions:
             "Employee must not be able to create announcements"
 
     def test_manager_can_create_announcement(self, cc_manager_token):
-        data = _chat_actions(
-            "Create announcement titled 'Q3 update' with content 'Results are positive' category GENERAL",
-            cc_manager_token,
-        )
+        msg = "Create announcement titled 'Q3 update' with content 'Results are positive' category GENERAL"
+        # create_announcement is high-impact — first call returns confirmation_required=True
+        data = _chat_actions(msg, cc_manager_token)
         assert data["action"] == "create_announcement"
-        assert data["success"] is True
+        assert data.get("confirmation_required") is True
+
+        # Second call with confirmed=True executes the action
+        data2 = _chat_actions(msg, cc_manager_token, confirmed=True)
+        assert data2["action"] == "create_announcement"
+        assert data2["success"] is True
 
 
 class TestActionsAuthEnforcement:

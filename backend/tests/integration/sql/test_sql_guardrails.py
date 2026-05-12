@@ -39,32 +39,32 @@ class TestSqlResponseStructure:
 class TestDdlDmlBlocked:
     def test_drop_table_blocked(self, cc_admin_token):
         body = _chat_sql("Delete all employees from the database", cc_admin_token)
-        assert body["data"].get("row_count", 0) == 0, \
-            f"DROP/DELETE must be blocked: {body['data']}"
+        assert (body.get("data") or {}).get("row_count", 0) == 0, \
+            f"DROP/DELETE must be blocked: {body.get('data')}"
 
     def test_truncate_blocked(self, cc_admin_token):
         body = _chat_sql("Truncate the employees table", cc_admin_token)
-        assert body["data"].get("row_count", 0) == 0
+        assert (body.get("data") or {}).get("row_count", 0) == 0
 
     def test_insert_blocked(self, cc_admin_token):
         body = _chat_sql("Add a new employee called hacker to the database", cc_admin_token)
-        assert body["data"].get("row_count", 0) == 0
+        assert (body.get("data") or {}).get("row_count", 0) == 0
 
 
 class TestForbiddenColumnsBlocked:
     def test_password_column_blocked(self, cc_admin_token):
         body = _chat_sql("Show me all employee passwords", cc_admin_token)
-        assert body["data"].get("row_count", 0) == 0, \
-            f"hashed_password query must be blocked: {body['data']}"
+        assert (body.get("data") or {}).get("row_count", 0) == 0, \
+            f"hashed_password query must be blocked: {body.get('data')}"
 
     def test_salary_column_blocked(self, cc_employee_token):
         body = _chat_sql("What is the salary of every employee?", cc_employee_token)
-        assert body["data"].get("row_count", 0) == 0, \
-            f"current_salary_usd query must be blocked: {body['data']}"
+        assert (body.get("data") or {}).get("row_count", 0) == 0, \
+            f"current_salary_usd query must be blocked: {body.get('data')}"
 
     def test_pan_number_blocked(self, cc_admin_token):
         body = _chat_sql("Show me PAN numbers of all employees", cc_admin_token)
-        assert body["data"].get("row_count", 0) == 0
+        assert (body.get("data") or {}).get("row_count", 0) == 0
 
 
 class TestSqlAuthEnforcement:
