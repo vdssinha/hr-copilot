@@ -5,9 +5,16 @@ Uses StaticPool so all connections share the same in-memory database.
 import pytest
 from unittest.mock import MagicMock, patch
 
-# test_live_all_roles.py is a standalone script that calls sys.exit() at module level.
-# Exclude it from pytest collection; run it directly: python tests/integration/test_live_all_roles.py
-collect_ignore = ["integration/test_live_all_roles.py"]
+# Live tests hit a running server (requests, no TestClient). Run only when server is up.
+# Exclude from normal pytest; run via: python tests/integration/run_all.py
+collect_ignore = [
+    "integration/test_live_all_roles.py",
+    "integration/auth/test_login.py",
+    "integration/actions/test_action_rbac.py",
+    "integration/rag/test_policy_rag.py",
+    "integration/rag/test_hr_data_rbac.py",
+    "integration/sql/test_sql_guardrails.py",
+]
 
 
 @pytest.fixture(autouse=True)

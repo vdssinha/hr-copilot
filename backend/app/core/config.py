@@ -147,6 +147,7 @@ AI_MAX_TOKENS_ACTION_AGENT_SUMMARY = int(os.getenv("AI_MAX_TOKENS_ACTION_AGENT_S
 # Prior conversation turns (user+assistant pairs) sent to ALL agents so they
 # can resolve references like "her", "that project", etc. from recent context.
 AI_CONTEXT_TURNS = int(os.getenv("AI_CONTEXT_TURNS", "3"))
+AI_SQL_CONTEXT_TURNS = int(os.getenv("AI_SQL_CONTEXT_TURNS", "3"))
 
 # Number of agent-local turns (Tier 3) before auto-summarization fires.
 # At this threshold oldest turns are compressed → stored as Tier 2 session memory.

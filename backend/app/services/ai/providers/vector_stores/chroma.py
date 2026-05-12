@@ -56,8 +56,6 @@ class ChromaVectorStore(BaseVectorStore):
         return self._collection.count()
 
     def clear(self) -> None:
-        name = self._collection.name
-        self._client.delete_collection(name)
-        self._collection = self._client.get_or_create_collection(
-            name=name, metadata={"hnsw:space": "cosine"}
-        )
+        ids = self._collection.get()["ids"]
+        if ids:
+            self._collection.delete(ids=ids)
