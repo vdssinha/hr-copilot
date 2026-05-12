@@ -11,7 +11,7 @@ from app.core.config import POLICY_UPLOAD_DIR
 from app.core.dependencies import get_current_user, require_role
 from app.core.security import hash_password
 from app.db.session import get_db
-from app.models.ai_audit_log import AIAuditLog, ActionStatus
+from app.models.ai_audit_log import AIAuditLog, AIIntent, ActionStatus
 from app.models.announcement import Announcement
 from app.models.employee import Employee, EmployeeRole, EmploymentType, EmployeeStatus
 from app.models.job_history import JobHistory
@@ -39,7 +39,7 @@ from app.schemas.admin import (
 )
 from app.schemas.common import APIResponse
 from app.services.ai.document_loader import extract_text_bytes
-from sqlalchemy import func, case
+from sqlalchemy import func, case, or_
 from app.services.ai.hr_data_rag import ingest_hr_data
 from app.services.ai.policy_rag import ingest_policies
 
@@ -435,9 +435,9 @@ def ai_usage_stats(
                      .all()
     ]
 
-    # by tool
+    # by tool — exclude null tool_name (error entries without a tool) but show them as "error"
     by_tool = [
-        {"tool": row[0] or "unknown", "count": row[1]}
+        {"tool": row[0] if row[0] else "error", "count": row[1]}
         for row in db.query(AIAuditLog.tool_name, func.count(AIAuditLog.id))
                      .filter(AIAuditLog.created_at >= since)
                      .group_by(AIAuditLog.tool_name)
@@ -445,8 +445,18 @@ def ai_usage_stats(
                      .all()
     ]
 
-    # failed permission attempts (REFUSED)
-    refused_count = base.filter(AIAuditLog.action_status == ActionStatus.REFUSED).count()
+    # failed permission attempts: HR_ACTION refused (permission denied) + UNKNOWN refused (guardrail blocks)
+    # Excludes RAG no-answer (policy_rag/hr_data_rag REFUSED = no content found, not a permission failure)
+    permission_failures = base.filter(
+        AIAuditLog.action_status == ActionStatus.REFUSED,
+        or_(
+            AIAuditLog.intent == AIIntent.HR_ACTION,
+            AIAuditLog.intent == AIIntent.UNKNOWN,
+        ),
+    ).count()
+
+    # error count: interactions that threw exceptions
+    error_count = base.filter(AIAuditLog.action_status == ActionStatus.ERROR).count()
 
     # avg latency (exclude NULLs)
     avg_lat = db.query(func.avg(AIAuditLog.latency_ms))\
@@ -462,15 +472,18 @@ def ai_usage_stats(
     ).count()
     rag_no_answer_rate = round(rag_no_answer / rag_total * 100, 1) if rag_total else 0.0
 
-    # SQL blocked count
+    # SQL blocked count: sql_agent REFUSED = security guardrail blocked the query
     sql_blocked = base.filter(
         AIAuditLog.tool_name == "sql_agent",
         AIAuditLog.action_status == ActionStatus.REFUSED,
     ).count()
 
-    # requests per day (last N days)
+    # success count
+    success_count = base.filter(AIAuditLog.action_status == ActionStatus.SUCCESS).count()
+
+    # requests per day (last 14 days — fixed window for chart)
     daily = []
-    for i in range(min(days, 14), -1, -1):
+    for i in range(13, -1, -1):
         day_start = datetime.utcnow().replace(hour=0, minute=0, second=0, microsecond=0) - timedelta(days=i)
         day_end = day_start + timedelta(days=1)
         count = db.query(AIAuditLog)\
@@ -481,7 +494,9 @@ def ai_usage_stats(
     return APIResponse.ok({
         "period_days": days,
         "total_requests": total,
-        "refused_count": refused_count,
+        "success_count": success_count,
+        "permission_failures": permission_failures,
+        "error_count": error_count,
         "avg_latency_ms": round(avg_lat, 1) if avg_lat else None,
         "rag_no_answer_rate_pct": rag_no_answer_rate,
         "sql_blocked_count": sql_blocked,

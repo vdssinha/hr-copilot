@@ -64,6 +64,7 @@ export default function AdminPage() {
   const [aiStats, setAiStats] = useState<Record<string, unknown> | null>(null);
   const [aiStatsLoading, setAiStatsLoading] = useState(false);
   const [aiStatsError, setAiStatsError] = useState<string | null>(null);
+  const [aiStatsUpdatedAt, setAiStatsUpdatedAt] = useState<Date | null>(null);
 
   // create user form
   const [showCreateUser, setShowCreateUser] = useState(false);
@@ -128,7 +129,8 @@ export default function AdminPage() {
   }, [token]);
 
   useEffect(() => {
-    if (tab === "ai-stats" && token && !aiStats) loadAiStats();
+    if (tab === "ai-stats" && token) loadAiStats();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tab, token]);
 
   async function loadAll() {
@@ -158,6 +160,7 @@ export default function AdminPage() {
       const res = await admin.aiStats(token);
       if (res.status === 200 && res.data.success) {
         setAiStats(res.data.data);
+        setAiStatsUpdatedAt(new Date());
       } else {
         setAiStatsError(`Server error (HTTP ${res.status})`);
       }
@@ -905,14 +908,22 @@ export default function AdminPage() {
           /* ── AI Dashboard tab ──────────────────────────────────── */
           <div className="space-y-6">
             <div className="flex items-center justify-between">
-              <h2 className="text-base font-semibold text-gray-800">AI Usage Dashboard</h2>
+              <div>
+                <h2 className="text-base font-semibold text-gray-800">AI Usage Dashboard</h2>
+                {aiStatsUpdatedAt && (
+                  <p className="text-xs text-slate-400 mt-0.5">
+                    Last updated: {aiStatsUpdatedAt.toLocaleTimeString()}
+                    {aiStatsLoading && " · refreshing…"}
+                  </p>
+                )}
+              </div>
               <button onClick={loadAiStats} disabled={aiStatsLoading}
                 className="text-xs text-slate-500 border border-slate-200 px-3 py-1.5 rounded-md hover:bg-slate-50 disabled:opacity-50 transition">
                 {aiStatsLoading ? "Loading…" : "Refresh"}
               </button>
             </div>
 
-            {aiStatsLoading && (
+            {aiStatsLoading && !aiStats && (
               <div className="text-center text-gray-400 py-16 text-sm">Loading stats…</div>
             )}
 
@@ -923,13 +934,19 @@ export default function AdminPage() {
             )}
 
             {!aiStatsLoading && !aiStatsError && !aiStats && (
-              <div className="text-center text-gray-400 py-16 text-sm">No data. Click Refresh to load.</div>
+              <div className="text-center text-gray-400 py-16 text-sm">No data available.</div>
             )}
 
-            {!aiStatsLoading && !aiStatsError && aiStats && (() => {
+            {aiStats && (() => {
               const s = aiStats as {
-                total_requests: number; refused_count: number; avg_latency_ms: number | null;
-                rag_no_answer_rate_pct: number; sql_blocked_count: number; period_days: number;
+                total_requests: number;
+                success_count: number;
+                permission_failures: number;
+                error_count: number;
+                avg_latency_ms: number | null;
+                rag_no_answer_rate_pct: number;
+                sql_blocked_count: number;
+                period_days: number;
                 by_intent: { intent: string; count: number }[];
                 by_tool: { tool: string; count: number }[];
                 daily: { date: string; count: number }[];
@@ -940,26 +957,27 @@ export default function AdminPage() {
               const maxDaily = Math.max(...daily.map(d => d.count), 1);
               const total = s.total_requests || 1;
               return (
-                <>
-                  {/* Stat cards */}
-                  <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
+                <div className={`space-y-4 transition-opacity ${aiStatsLoading ? "opacity-60" : "opacity-100"}`}>
+                  {/* 7 required metrics from Requirement §8 */}
+                  <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-3">
                     {[
-                      { label: "Total Requests", value: s.total_requests, color: "text-brand" },
-                      { label: "Failed Permissions", value: s.refused_count, color: "text-red-600" },
-                      { label: "Avg Latency", value: s.avg_latency_ms != null ? `${Math.round(s.avg_latency_ms)}ms` : "—", color: "text-amber-600" },
-                      { label: "RAG No-Answer %", value: `${s.rag_no_answer_rate_pct}%`, color: "text-orange-600" },
-                      { label: "SQL Blocked", value: s.sql_blocked_count, color: "text-violet-600" },
-                      { label: "Period", value: `${s.period_days}d`, color: "text-slate-500" },
-                    ].map(({ label, value, color }) => (
-                      <div key={label} className="rounded-lg border border-slate-200 bg-white px-4 py-3">
-                        <p className="text-xs text-slate-500 mb-1">{label}</p>
+                      { label: "Total Requests", value: s.total_requests, color: "text-brand", title: "All AI interactions in period" },
+                      { label: "Successful", value: s.success_count, color: "text-green-600", title: "Requests that returned results" },
+                      { label: "Permission Failures", value: s.permission_failures, color: "text-red-600", title: "HR actions or guardrail blocks denied by RBAC" },
+                      { label: "Errors", value: s.error_count, color: "text-rose-500", title: "Requests that threw exceptions" },
+                      { label: "Avg Latency", value: s.avg_latency_ms != null ? `${Math.round(s.avg_latency_ms)}ms` : "—", color: "text-amber-600", title: "Average response time (only logged requests)" },
+                      { label: "RAG No-Answer %", value: `${s.rag_no_answer_rate_pct}%`, color: "text-orange-600", title: "Policy/HR-data RAG calls with no relevant content found" },
+                      { label: "SQL Blocked", value: s.sql_blocked_count, color: "text-violet-600", title: "SQL queries rejected by security guardrail" },
+                    ].map(({ label, value, color, title }) => (
+                      <div key={label} className="rounded-lg border border-slate-200 bg-white px-4 py-3" title={title}>
+                        <p className="text-xs text-slate-500 mb-1 leading-tight">{label}</p>
                         <p className={`text-xl font-bold ${color}`}>{String(value)}</p>
                       </div>
                     ))}
                   </div>
 
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    {/* By Intent */}
+                    {/* Most Common Intents */}
                     <div className="rounded-lg border border-slate-200 bg-white p-4">
                       <p className="text-sm font-semibold text-slate-700 mb-3">Most Common Intents</p>
                       <div className="space-y-2">
@@ -967,7 +985,7 @@ export default function AdminPage() {
                           ? <p className="text-xs text-slate-400">No data</p>
                           : byIntent.map(({ intent, count }) => (
                             <div key={intent} className="flex items-center gap-2">
-                              <span className="text-xs text-slate-600 w-28 shrink-0">{intent}</span>
+                              <span className="text-xs text-slate-600 w-28 shrink-0">{intent.replace("_", " ")}</span>
                               <div className="flex-1 h-2 bg-slate-100 rounded-full overflow-hidden">
                                 <div className="h-2 bg-brand rounded-full" style={{ width: `${(count / total) * 100}%` }} />
                               </div>
@@ -977,7 +995,7 @@ export default function AdminPage() {
                       </div>
                     </div>
 
-                    {/* By Tool */}
+                    {/* Most Used Tools */}
                     <div className="rounded-lg border border-slate-200 bg-white p-4">
                       <p className="text-sm font-semibold text-slate-700 mb-3">Most Used Tools</p>
                       <div className="space-y-2">
@@ -985,7 +1003,7 @@ export default function AdminPage() {
                           ? <p className="text-xs text-slate-400">No data</p>
                           : byTool.map(({ tool, count }) => (
                             <div key={tool} className="flex items-center gap-2">
-                              <span className="text-xs text-slate-600 w-28 shrink-0 truncate">{tool}</span>
+                              <span className="text-xs text-slate-600 w-28 shrink-0 truncate" title={tool}>{tool.replace(/_/g, " ")}</span>
                               <div className="flex-1 h-2 bg-slate-100 rounded-full overflow-hidden">
                                 <div className="h-2 bg-emerald-500 rounded-full" style={{ width: `${(count / total) * 100}%` }} />
                               </div>
@@ -996,9 +1014,9 @@ export default function AdminPage() {
                     </div>
                   </div>
 
-                  {/* Daily requests bar chart */}
+                  {/* Daily requests bar chart (14-day window) */}
                   <div className="rounded-lg border border-slate-200 bg-white p-4">
-                    <p className="text-sm font-semibold text-slate-700 mb-3">Requests per Day (last 14 days)</p>
+                    <p className="text-sm font-semibold text-slate-700 mb-3">Requests per Day — last 14 days</p>
                     {daily.length === 0 ? (
                       <p className="text-xs text-slate-400">No daily data</p>
                     ) : (
@@ -1015,7 +1033,7 @@ export default function AdminPage() {
                       </div>
                     )}
                   </div>
-                </>
+                </div>
               );
             })()}
           </div>
