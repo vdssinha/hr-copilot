@@ -18,9 +18,10 @@ import { getToken, getUser, clearAuth } from "@/lib/auth";
 type Mode = "router" | "policy" | "sql" | "actions" | "hr-data" | "my-leaves" | "pending-approvals" | "announcements" | "tickets" | "projects";
 
 const MANAGER_ROLES = new Set(["MANAGER", "HR", "ADMIN", "C_LEVEL"]);
+const HR_ROLES = new Set(["HR", "ADMIN", "C_LEVEL"]);
 
 const ALL_MODES: {
-  id: Mode; icon: React.ElementType; managerOnly?: boolean;
+  id: Mode; icon: React.ElementType; managerOnly?: boolean; hrOnly?: boolean;
   label: string; description: string;
   managerLabel?: string; managerDescription?: string;
 }[] = [
@@ -28,7 +29,7 @@ const ALL_MODES: {
   { id: "policy",             label: "HR Policy",           description: "Answer HR policy questions",                  icon: FileText },
   { id: "sql",                label: "People & Data",       description: "Query employees, projects, skills",           icon: Database,       managerOnly: true },
   { id: "actions",            label: "HR Tasks",            description: "Apply leave, create tickets, and more",       icon: ListTodo },
-  { id: "hr-data",            label: "HR Employee Data",    description: "Semantic search over employee records",       icon: Users,          managerOnly: true },
+  { id: "hr-data",            label: "HR Employee Data",    description: "Semantic search over employee records",       icon: Users,          hrOnly: true },
   { id: "my-leaves",          label: "My Leaves",           description: "View your leave history and status",          icon: Calendar },
   { id: "announcements",      label: "Announcements",       description: "Company-wide announcements",                  icon: Megaphone },
   {
@@ -86,8 +87,9 @@ export default function AICopilotPage() {
   if (!ready) return null;
 
   const isManager = MANAGER_ROLES.has(userRole);
+  const isHR = HR_ROLES.has(userRole);
   const MODES = ALL_MODES
-    .filter((m) => !m.managerOnly || isManager)
+    .filter((m) => (!m.managerOnly || isManager) && (!m.hrOnly || isHR))
     .map((m) => ({
       ...m,
       label:       (isManager && m.managerLabel)       ? m.managerLabel       : m.label,
