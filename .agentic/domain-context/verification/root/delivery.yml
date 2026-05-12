@@ -4,7 +4,7 @@ scope_id: root
 verification_mode: manual
 verification_status: verified
 staleness_status: fresh
-verified_at: '2026-05-12T17:55:39Z'
+verified_at: '2026-05-12T17:59:13Z'
 approved_by:
 - vijaydeep
 source_refs:
@@ -14,14 +14,14 @@ source_refs:
 source_hashes:
   docs/testing/strategy.md: 9ecce4afc57d6222c108fcf798e95bdd5354631911a428ed41d3cd85e4d2e86b
   docs/review/policy.md: fdbc6ae9804aa64004a19ca2fb745e35644d30e10ec82bab5ee3bbfb8b9510ae
-  docs/JIRA_CATALOG.md: 3203b69c0ea6c10e5bf26f10b008acf9f45462d75cfbb6b4ae52166eae28b368
+  docs/JIRA_CATALOG.md: ac1ec0e5174acec1e384f34a42461d788a5d4d549e1f269463bc0389c90430b6
 locked_source_refs:
 - docs/JIRA_CATALOG.md
 derived_summary_hash: beffdf333ee174abc9c38d73be0f6ef23b8a3f44febdb45e3e9a7233f7bf2baa
 producer_run:
   schema_version: 1
   pack_id: delivery
-  generated_at: '2026-05-12T17:55:22Z'
+  generated_at: '2026-05-12T17:59:13Z'
   producer: domain_context.delivery
   generated_refs:
   - docs/JIRA_CATALOG.md
