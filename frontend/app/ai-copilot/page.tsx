@@ -4,8 +4,8 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   Bot, Zap, FileText, Database, ListTodo, Users,
-  LogOut, ChevronRight, Settings, Calendar, ClipboardCheck,
-  Megaphone, Ticket, FolderKanban,
+  LogOut, ChevronRight, ChevronDown, Settings, Calendar, ClipboardCheck,
+  Megaphone, Ticket, FolderKanban, Briefcase, LayoutDashboard, Building2,
 } from "lucide-react";
 import { ChatPanel } from "@/components/ai/ChatPanel";
 import { PendingApprovals } from "@/components/ai/PendingApprovals";
@@ -58,13 +58,21 @@ const ROLE_COLORS: Record<string, string> = {
 
 const CHAT_MODES = new Set(["router", "policy", "sql", "actions", "hr-data"]);
 
+const SIDEBAR_GROUPS: { id: string; label: string; icon: React.ElementType; modeIds: Mode[] }[] = [
+  { id: "copilot",  label: "Copilot",   icon: Zap,           modeIds: ["router"] },
+  { id: "hr",       label: "HR Tools",  icon: Briefcase,     modeIds: ["policy", "sql", "actions", "hr-data"] },
+  { id: "myspace",  label: "My Space",  icon: LayoutDashboard, modeIds: ["my-leaves", "tickets", "projects"] },
+  { id: "company",  label: "Company",   icon: Building2,     modeIds: ["announcements", "pending-approvals"] },
+];
+
 export default function AICopilotPage() {
   const router = useRouter();
-  const [token, setToken]     = useState<string | null>(null);
-  const [mode, setMode]       = useState<Mode>("router");
+  const [token, setToken]       = useState<string | null>(null);
+  const [mode, setMode]         = useState<Mode>("router");
   const [userName, setUserName] = useState("");
   const [userRole, setUserRole] = useState("");
-  const [ready, setReady]     = useState(false);
+  const [ready, setReady]       = useState(false);
+  const [hoveredGroup, setHoveredGroup] = useState<string | null>(null);
 
   useEffect(() => {
     const t = getToken();
@@ -114,27 +122,57 @@ export default function AICopilotPage() {
 
         <div className="mx-4 h-px bg-white/10" />
 
-        {/* Nav modes */}
-        <nav className="flex-1 overflow-y-auto px-2 py-3 space-y-0.5 scrollbar-thin">
-          {MODES.map(({ id, label, description, icon: Icon }) => {
-            const active = mode === id;
+        {/* Nav modes — grouped */}
+        <nav className="flex-1 overflow-y-auto px-2 py-3 space-y-1 scrollbar-thin">
+          {SIDEBAR_GROUPS.map(({ id: groupId, label: groupLabel, icon: GroupIcon, modeIds }) => {
+            const groupModes = MODES.filter((m) => modeIds.includes(m.id));
+            if (groupModes.length === 0) return null;
+            const hasActive = modeIds.includes(mode);
+            const isOpen = hasActive || hoveredGroup === groupId;
             return (
-              <button
-                key={id}
-                onClick={() => setMode(id)}
-                className={`group flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left transition-colors ${
-                  active
-                    ? "bg-brand text-white"
-                    : "text-slate-400 hover:bg-white/10 hover:text-slate-200"
-                }`}
+              <div
+                key={groupId}
+                onMouseEnter={() => setHoveredGroup(groupId)}
+                onMouseLeave={() => setHoveredGroup(null)}
               >
-                <Icon className={`h-4 w-4 shrink-0 ${active ? "text-white" : "text-slate-500 group-hover:text-slate-300"}`} />
-                <div className="min-w-0">
-                  <p className={`text-sm font-medium truncate ${active ? "text-white" : ""}`}>{label}</p>
-                  <p className={`text-xs truncate mt-0.5 ${active ? "text-white/70" : "text-slate-600"}`}>{description}</p>
+                {/* Group header */}
+                <div className={`flex items-center gap-2 px-3 py-1.5 rounded-lg cursor-default select-none transition-colors ${
+                  hasActive ? "text-white/80" : "text-slate-500 hover:text-slate-300"
+                }`}>
+                  <GroupIcon className="h-3.5 w-3.5 shrink-0" />
+                  <span className="text-xs font-semibold uppercase tracking-wide flex-1">{groupLabel}</span>
+                  {isOpen
+                    ? <ChevronDown className="h-3 w-3 shrink-0 opacity-60" />
+                    : <ChevronRight className="h-3 w-3 shrink-0 opacity-40" />}
                 </div>
-                {active && <ChevronRight className="ml-auto h-3.5 w-3.5 shrink-0 text-white/60" />}
-              </button>
+
+                {/* Group items */}
+                {isOpen && (
+                  <div className="mt-0.5 space-y-0.5 pl-2">
+                    {groupModes.map(({ id, label, description, icon: Icon }) => {
+                      const active = mode === id;
+                      return (
+                        <button
+                          key={id}
+                          onClick={() => setMode(id)}
+                          className={`group flex w-full items-center gap-3 rounded-lg px-3 py-2 text-left transition-colors ${
+                            active
+                              ? "bg-brand text-white"
+                              : "text-slate-400 hover:bg-white/10 hover:text-slate-200"
+                          }`}
+                        >
+                          <Icon className={`h-4 w-4 shrink-0 ${active ? "text-white" : "text-slate-500 group-hover:text-slate-300"}`} />
+                          <div className="min-w-0">
+                            <p className={`text-sm font-medium truncate ${active ? "text-white" : ""}`}>{label}</p>
+                            <p className={`text-xs truncate mt-0.5 ${active ? "text-white/70" : "text-slate-600"}`}>{description}</p>
+                          </div>
+                          {active && <ChevronRight className="ml-auto h-3.5 w-3.5 shrink-0 text-white/60" />}
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
             );
           })}
         </nav>
