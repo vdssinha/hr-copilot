@@ -28,7 +28,7 @@ export function PendingApprovals({ token }: PendingApprovalsProps) {
     try {
       const res = await leavesApi.pendingApprovals(token);
       if (res.data?.success) {
-        setItems(res.data.data?.pending ?? []);
+        setItems(res.data.data ?? []);
       } else {
         setError("Failed to load pending approvals.");
       }

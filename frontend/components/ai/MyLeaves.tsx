@@ -33,7 +33,7 @@ export function MyLeaves({ token }: MyLeavesProps) {
     try {
       const res = await leavesApi.myLeaves(token);
       if (res.data?.success) {
-        setItems(res.data.data?.leaves ?? []);
+        setItems(res.data.data ?? []);
       } else {
         setError("Failed to load leave history.");
       }

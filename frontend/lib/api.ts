@@ -81,10 +81,10 @@ export interface LeaveRequest {
 
 export const leavesApi = {
   myLeaves: (token: string) =>
-    request<{ success: boolean; data: { leaves: LeaveRequest[] } }>("/leaves/requests/my", { method: "GET" }, token),
+    request<{ success: boolean; data: LeaveRequest[] }>("/leaves/requests/my", { method: "GET" }, token),
 
   pendingApprovals: (token: string) =>
-    request<{ success: boolean; data: { pending: LeaveRequest[] } }>("/leaves/requests/pending", { method: "GET" }, token),
+    request<{ success: boolean; data: LeaveRequest[] }>("/leaves/requests/pending", { method: "GET" }, token),
 
   approve: (token: string, requestId: number) =>
     request<{ success: boolean; data: unknown }>(`/leaves/requests/${requestId}`, {
