@@ -1,5 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
+from app.core.dependencies import get_current_user
 from app.db.session import get_db
 from app.models.employee import Employee
 from app.core.security import verify_password, create_access_token, hash_password
@@ -24,6 +25,18 @@ def login(payload: LoginRequest, db: Session = Depends(get_db)):
         user_id=user.id,
         name=user.name,
     ))
+
+
+@router.get("/me", response_model=APIResponse)
+def me(current_user: Employee = Depends(get_current_user)):
+    return APIResponse.ok({
+        "id": current_user.id,
+        "name": current_user.name,
+        "email": current_user.email,
+        "role": current_user.role.value,
+        "employee_code": current_user.employee_code,
+        "status": current_user.status,
+    })
 
 
 @router.post("/register", response_model=APIResponse)
