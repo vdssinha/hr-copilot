@@ -63,6 +63,7 @@ export default function AdminPage() {
   const [policies, setPolicies] = useState<AdminPolicy[]>([]);
   const [aiStats, setAiStats] = useState<Record<string, unknown> | null>(null);
   const [aiStatsLoading, setAiStatsLoading] = useState(false);
+  const [aiStatsError, setAiStatsError] = useState<string | null>(null);
 
   // create user form
   const [showCreateUser, setShowCreateUser] = useState(false);
@@ -152,12 +153,16 @@ export default function AdminPage() {
 
   async function loadAiStats() {
     setAiStatsLoading(true);
+    setAiStatsError(null);
     try {
-      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000/api/v1"}/admin/ai-stats`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      const body = await res.json();
-      if (body.success) setAiStats(body.data);
+      const res = await admin.aiStats(token);
+      if (res.status === 200 && res.data.success) {
+        setAiStats(res.data.data);
+      } else {
+        setAiStatsError(`Server error (HTTP ${res.status})`);
+      }
+    } catch (e) {
+      setAiStatsError(String(e));
     } finally {
       setAiStatsLoading(false);
     }
@@ -907,9 +912,21 @@ export default function AdminPage() {
               </button>
             </div>
 
-            {aiStatsLoading && <div className="text-center text-gray-400 py-16 text-sm">Loading stats…</div>}
+            {aiStatsLoading && (
+              <div className="text-center text-gray-400 py-16 text-sm">Loading stats…</div>
+            )}
 
-            {!aiStatsLoading && aiStats && (() => {
+            {!aiStatsLoading && aiStatsError && (
+              <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+                Failed to load AI stats: {aiStatsError}
+              </div>
+            )}
+
+            {!aiStatsLoading && !aiStatsError && !aiStats && (
+              <div className="text-center text-gray-400 py-16 text-sm">No data. Click Refresh to load.</div>
+            )}
+
+            {!aiStatsLoading && !aiStatsError && aiStats && (() => {
               const s = aiStats as {
                 total_requests: number; refused_count: number; avg_latency_ms: number | null;
                 rag_no_answer_rate_pct: number; sql_blocked_count: number; period_days: number;
@@ -917,7 +934,11 @@ export default function AdminPage() {
                 by_tool: { tool: string; count: number }[];
                 daily: { date: string; count: number }[];
               };
-              const maxDaily = Math.max(...s.daily.map(d => d.count), 1);
+              const daily = Array.isArray(s.daily) ? s.daily : [];
+              const byIntent = Array.isArray(s.by_intent) ? s.by_intent : [];
+              const byTool = Array.isArray(s.by_tool) ? s.by_tool : [];
+              const maxDaily = Math.max(...daily.map(d => d.count), 1);
+              const total = s.total_requests || 1;
               return (
                 <>
                   {/* Stat cards */}
@@ -942,15 +963,17 @@ export default function AdminPage() {
                     <div className="rounded-lg border border-slate-200 bg-white p-4">
                       <p className="text-sm font-semibold text-slate-700 mb-3">Most Common Intents</p>
                       <div className="space-y-2">
-                        {s.by_intent.map(({ intent, count }) => (
-                          <div key={intent} className="flex items-center gap-2">
-                            <span className="text-xs text-slate-600 w-28 shrink-0">{intent}</span>
-                            <div className="flex-1 h-2 bg-slate-100 rounded-full overflow-hidden">
-                              <div className="h-2 bg-brand rounded-full" style={{ width: `${(count / s.total_requests) * 100}%` }} />
+                        {byIntent.length === 0
+                          ? <p className="text-xs text-slate-400">No data</p>
+                          : byIntent.map(({ intent, count }) => (
+                            <div key={intent} className="flex items-center gap-2">
+                              <span className="text-xs text-slate-600 w-28 shrink-0">{intent}</span>
+                              <div className="flex-1 h-2 bg-slate-100 rounded-full overflow-hidden">
+                                <div className="h-2 bg-brand rounded-full" style={{ width: `${(count / total) * 100}%` }} />
+                              </div>
+                              <span className="text-xs text-slate-500 w-6 text-right">{count}</span>
                             </div>
-                            <span className="text-xs text-slate-500 w-6 text-right">{count}</span>
-                          </div>
-                        ))}
+                          ))}
                       </div>
                     </div>
 
@@ -958,15 +981,17 @@ export default function AdminPage() {
                     <div className="rounded-lg border border-slate-200 bg-white p-4">
                       <p className="text-sm font-semibold text-slate-700 mb-3">Most Used Tools</p>
                       <div className="space-y-2">
-                        {s.by_tool.map(({ tool, count }) => (
-                          <div key={tool} className="flex items-center gap-2">
-                            <span className="text-xs text-slate-600 w-28 shrink-0 truncate">{tool}</span>
-                            <div className="flex-1 h-2 bg-slate-100 rounded-full overflow-hidden">
-                              <div className="h-2 bg-emerald-500 rounded-full" style={{ width: `${(count / s.total_requests) * 100}%` }} />
+                        {byTool.length === 0
+                          ? <p className="text-xs text-slate-400">No data</p>
+                          : byTool.map(({ tool, count }) => (
+                            <div key={tool} className="flex items-center gap-2">
+                              <span className="text-xs text-slate-600 w-28 shrink-0 truncate">{tool}</span>
+                              <div className="flex-1 h-2 bg-slate-100 rounded-full overflow-hidden">
+                                <div className="h-2 bg-emerald-500 rounded-full" style={{ width: `${(count / total) * 100}%` }} />
+                              </div>
+                              <span className="text-xs text-slate-500 w-6 text-right">{count}</span>
                             </div>
-                            <span className="text-xs text-slate-500 w-6 text-right">{count}</span>
-                          </div>
-                        ))}
+                          ))}
                       </div>
                     </div>
                   </div>
@@ -974,17 +999,21 @@ export default function AdminPage() {
                   {/* Daily requests bar chart */}
                   <div className="rounded-lg border border-slate-200 bg-white p-4">
                     <p className="text-sm font-semibold text-slate-700 mb-3">Requests per Day (last 14 days)</p>
-                    <div className="flex items-end gap-1 h-24">
-                      {s.daily.map(({ date, count }) => (
-                        <div key={date} className="flex-1 flex flex-col items-center gap-1">
-                          <div className="w-full bg-brand/80 rounded-t"
-                            style={{ height: `${(count / maxDaily) * 80}px`, minHeight: count > 0 ? "4px" : "0" }}
-                            title={`${date}: ${count}`}
-                          />
-                          <span className="text-[9px] text-slate-400 rotate-45 origin-left">{date.slice(5)}</span>
-                        </div>
-                      ))}
-                    </div>
+                    {daily.length === 0 ? (
+                      <p className="text-xs text-slate-400">No daily data</p>
+                    ) : (
+                      <div className="flex items-end gap-1 h-24">
+                        {daily.map(({ date, count }) => (
+                          <div key={date} className="flex-1 flex flex-col items-center gap-1">
+                            <div className="w-full bg-brand/80 rounded-t"
+                              style={{ height: `${(count / maxDaily) * 80}px`, minHeight: count > 0 ? "4px" : "0" }}
+                              title={`${date}: ${count}`}
+                            />
+                            <span className="text-[9px] text-slate-400 rotate-45 origin-left">{date.slice(5)}</span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
                   </div>
                 </>
               );

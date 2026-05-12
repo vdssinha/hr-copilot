@@ -257,6 +257,9 @@ export const admin = {
 
   deletePolicyGroup: (token: string, name: string) =>
     request<null>(`/admin/policy-groups/${name}`, { method: "DELETE" }, token),
+
+  aiStats: (token: string, days = 30) =>
+    request<{ success: boolean; data: Record<string, unknown> }>(`/admin/ai-stats?days=${days}`, { method: "GET" }, token),
 };
 
 export async function streamRouter(
