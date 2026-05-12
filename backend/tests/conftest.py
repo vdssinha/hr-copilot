@@ -3,6 +3,7 @@ Shared fixtures: in-memory SQLite DB, TestClient, per-role employees + JWT token
 Uses StaticPool so all connections share the same in-memory database.
 """
 import pytest
+from unittest.mock import MagicMock, patch
 
 # test_live_all_roles.py is a standalone script that calls sys.exit() at module level.
 # Exclude it from pytest collection; run it directly: python tests/integration/test_live_all_roles.py
@@ -10,11 +11,26 @@ collect_ignore = ["integration/test_live_all_roles.py"]
 
 
 @pytest.fixture(autouse=True)
-def _clear_pipeline_cache():
-    """Clear get_pipeline lru_cache before every test so mock embedders take effect."""
+def _pipeline_isolation():
+    """
+    Clear get_pipeline lru_cache before every test and provide a passthrough
+    embedder so the pipeline can rebuild without a running LM Studio / Anthropic.
+    Individual tests may override ai_factory.get_embedder within their own
+    patch context; the innermost patch wins.
+    """
     from app.services.ai.pipeline import get_pipeline
+    from app.services.ai import factory as _ai_factory
+
     get_pipeline.cache_clear()
-    yield
+
+    fake_embedder = MagicMock()
+    # Non-zero for route indexing; zero query vector → cosine sim = 0 → guardrail never fires.
+    fake_embedder.embed.side_effect = lambda texts: [[0.1] * 768 for _ in texts]
+    fake_embedder.embed_query.return_value = [0.0] * 768
+
+    with patch.object(_ai_factory, "get_embedder", return_value=fake_embedder):
+        yield
+
     get_pipeline.cache_clear()
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine
