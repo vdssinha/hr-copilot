@@ -26,9 +26,9 @@ const ALL_MODES: {
 }[] = [
   { id: "router",             label: "Smart Copilot",       description: "Auto-routes to the right assistant",          icon: Zap },
   { id: "policy",             label: "HR Policy",           description: "Answer HR policy questions",                  icon: FileText },
-  { id: "sql",                label: "People & Data",       description: "Query employees, projects, skills",           icon: Database },
+  { id: "sql",                label: "People & Data",       description: "Query employees, projects, skills",           icon: Database,       managerOnly: true },
   { id: "actions",            label: "HR Tasks",            description: "Apply leave, create tickets, and more",       icon: ListTodo },
-  { id: "hr-data",            label: "HR Employee Data",    description: "Semantic search over employee records",       icon: Users },
+  { id: "hr-data",            label: "HR Employee Data",    description: "Semantic search over employee records",       icon: Users,          managerOnly: true },
   { id: "my-leaves",          label: "My Leaves",           description: "View your leave history and status",          icon: Calendar },
   { id: "announcements",      label: "Announcements",       description: "Company-wide announcements",                  icon: Megaphone },
   {
