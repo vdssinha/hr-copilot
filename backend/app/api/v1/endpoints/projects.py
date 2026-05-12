@@ -72,6 +72,17 @@ def my_projects(
     return APIResponse.ok(result["data"])
 
 
+@router.get("/projects", response_model=APIResponse)
+def list_projects(
+    current_user: Employee = Depends(require_role(*_PRIVILEGED)),
+    db: Session = Depends(get_db),
+) -> APIResponse:
+    result = project_service.list_projects(db=db, actor=current_user)
+    if not result["success"]:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=result["error"])
+    return APIResponse.ok(result["data"])
+
+
 @router.post("/projects", response_model=APIResponse, status_code=status.HTTP_201_CREATED)
 def create_project(
     body: CreateProjectRequest,

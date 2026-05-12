@@ -138,6 +138,28 @@ def check_project_assignments(db: Session, actor: Employee) -> dict:
     return {"success": True, "data": list(projects.values())}
 
 
+def list_projects(db: Session, actor: Employee) -> dict:
+    """MANAGER/HR/ADMIN/C_LEVEL: list all projects."""
+    allowed = {EmployeeRole.MANAGER, EmployeeRole.ADMIN, EmployeeRole.HR, EmployeeRole.C_LEVEL}
+    if actor.role not in allowed:
+        return {"success": False, "error": "You do not have permission to list all projects."}
+
+    projects = db.query(Project).order_by(Project.created_at.desc()).limit(50).all()
+    data = [
+        {
+            "id": p.id,
+            "name": p.name,
+            "description": p.description,
+            "status": p.status.value,
+            "start_date": p.start_date.isoformat() if p.start_date else None,
+            "end_date": p.end_date.isoformat() if p.end_date else None,
+            "created_at": p.created_at.isoformat() if p.created_at else None,
+        }
+        for p in projects
+    ]
+    return {"success": True, "data": data}
+
+
 def create_project(
     db: Session,
     actor: Employee,
