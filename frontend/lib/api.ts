@@ -79,6 +79,64 @@ export interface LeaveRequest {
   created_at: string;
 }
 
+// ── Announcements API ─────────────────────────────────────────────────────────
+
+export interface Announcement {
+  id: number;
+  title: string;
+  content: string;
+  category: string;
+  is_pinned: boolean;
+  created_by_id: number;
+  created_at: string;
+}
+
+export const announcementsApi = {
+  list: (token: string, limit = 50) =>
+    request<{ success: boolean; data: Announcement[] }>(`/announcements?limit=${limit}`, { method: "GET" }, token),
+};
+
+// ── Tickets API ───────────────────────────────────────────────────────────────
+
+export interface Ticket {
+  id: number;
+  title: string;
+  status: string;
+  priority: string;
+  category: string;
+  created_by_id: number;
+  assigned_to_id: number | null;
+  created_at: string;
+}
+
+export const ticketsApi = {
+  list: (token: string, limit = 50) =>
+    request<{ success: boolean; data: Ticket[] }>(`/tickets?limit=${limit}`, { method: "GET" }, token),
+};
+
+// ── Projects API ──────────────────────────────────────────────────────────────
+
+export interface ProjectItem {
+  id?: number;
+  project_id?: number;
+  name?: string;
+  project_name?: string;
+  description?: string;
+  status?: string;
+  start_date?: string | null;
+  end_date?: string | null;
+  role?: string;
+  assigned_at?: string;
+  created_at?: string;
+}
+
+export const projectsApi = {
+  myProjects: (token: string) =>
+    request<{ success: boolean; data: ProjectItem[] }>("/projects/my", { method: "GET" }, token),
+  list: (token: string) =>
+    request<{ success: boolean; data: ProjectItem[] }>("/projects", { method: "GET" }, token),
+};
+
 export const leavesApi = {
   myLeaves: (token: string) =>
     request<{ success: boolean; data: LeaveRequest[] }>("/leaves/requests/my", { method: "GET" }, token),

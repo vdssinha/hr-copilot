@@ -5,13 +5,17 @@ import { useRouter } from "next/navigation";
 import {
   Bot, Zap, FileText, Database, ListTodo, Users,
   LogOut, ChevronRight, Settings, Calendar, ClipboardCheck,
+  Megaphone, Ticket, FolderKanban,
 } from "lucide-react";
 import { ChatPanel } from "@/components/ai/ChatPanel";
 import { PendingApprovals } from "@/components/ai/PendingApprovals";
 import { MyLeaves } from "@/components/ai/MyLeaves";
+import { Announcements } from "@/components/ai/Announcements";
+import { MyTickets } from "@/components/ai/MyTickets";
+import { MyProjects } from "@/components/ai/MyProjects";
 import { getToken, getUser, clearAuth } from "@/lib/auth";
 
-type Mode = "router" | "policy" | "sql" | "actions" | "hr-data" | "my-leaves" | "pending-approvals";
+type Mode = "router" | "policy" | "sql" | "actions" | "hr-data" | "my-leaves" | "pending-approvals" | "announcements" | "tickets" | "projects";
 
 const MANAGER_ROLES = new Set(["MANAGER", "HR", "ADMIN", "C_LEVEL"]);
 
@@ -22,6 +26,9 @@ const ALL_MODES: { id: Mode; label: string; description: string; icon: React.Ele
   { id: "actions",            label: "HR Tasks",            description: "Apply leave, create tickets, and more",    icon: ListTodo },
   { id: "hr-data",            label: "HR Employee Data",    description: "Semantic search over employee records",    icon: Users },
   { id: "my-leaves",          label: "My Leaves",           description: "View your leave history and status",       icon: Calendar },
+  { id: "announcements",      label: "Announcements",       description: "Company-wide announcements",               icon: Megaphone },
+  { id: "tickets",            label: "Tickets",             description: "View and track support tickets",           icon: Ticket },
+  { id: "projects",           label: "Projects",            description: "View project assignments",                 icon: FolderKanban },
   { id: "pending-approvals",  label: "Pending Approvals",   description: "Approve or reject team leave requests",    icon: ClipboardCheck, managerOnly: true },
 ];
 
@@ -167,6 +174,9 @@ export default function AICopilotPage() {
           <ChatPanel key={mode} token={token!} mode={mode as Parameters<typeof ChatPanel>[0]["mode"]} />
         )}
         {mode === "my-leaves" && <MyLeaves token={token!} />}
+        {mode === "announcements" && <Announcements token={token!} />}
+        {mode === "tickets" && <MyTickets token={token!} />}
+        {mode === "projects" && <MyProjects token={token!} isManager={isManager} />}
         {mode === "pending-approvals" && <PendingApprovals token={token!} />}
       </main>
     </div>
