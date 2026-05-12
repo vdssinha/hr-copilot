@@ -13,6 +13,7 @@ def log_ai_interaction(
     action_status: ActionStatus,
     tool_name: Optional[str] = None,
     records_accessed: Optional[List] = None,
+    latency_ms: Optional[float] = None,
 ) -> None:
     entry = AIAuditLog(
         user_id=user.id,
@@ -22,6 +23,7 @@ def log_ai_interaction(
         tool_name=tool_name,
         action_status=action_status,
         records_accessed=json.dumps(records_accessed) if records_accessed else None,
+        latency_ms=latency_ms,
     )
     db.add(entry)
     db.commit()

@@ -1,6 +1,6 @@
 import enum
 from datetime import datetime
-from sqlalchemy import Column, Integer, String, DateTime, ForeignKey, Text, Enum as SAEnum
+from sqlalchemy import Column, Integer, String, DateTime, Float, ForeignKey, Text, Enum as SAEnum
 from sqlalchemy.orm import relationship
 from app.db.base import Base
 
@@ -30,6 +30,7 @@ class AIAuditLog(Base):
     tool_name = Column(String(100), nullable=True)
     action_status = Column(SAEnum(ActionStatus), nullable=True)
     records_accessed = Column(Text, nullable=True)  # JSON string
+    latency_ms = Column(Float, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
 
     user = relationship("Employee", back_populates="ai_audit_logs")
