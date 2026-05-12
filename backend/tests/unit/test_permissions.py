@@ -22,15 +22,17 @@ ADMIN = _emp(EmployeeRole.ADMIN)
 # ─── EMPLOYEE role ────────────────────────────────────────────────────────────
 
 @pytest.mark.parametrize("action", [
-    "apply_leave", "check_leave_balance", "create_ticket",
+    "apply_leave", "check_leave_balance", "get_my_leaves",
+    "create_ticket", "check_ticket_status", "view_own_projects",
 ])
 def test_employee_can_perform_basic_actions(action):
     assert can_perform(EMPLOYEE, action) is True
 
 
 @pytest.mark.parametrize("action", [
-    "approve_leave", "reject_leave",
+    "approve_leave", "reject_leave", "list_pending_approvals",
     "assign_ticket", "create_announcement", "assign_employee_to_project",
+    "search_employees_by_skill", "check_project_assignments",
 ])
 def test_employee_cannot_perform_manager_actions(action):
     assert can_perform(EMPLOYEE, action) is False
@@ -39,9 +41,11 @@ def test_employee_cannot_perform_manager_actions(action):
 # ─── MANAGER role ─────────────────────────────────────────────────────────────
 
 @pytest.mark.parametrize("action", [
-    "apply_leave", "check_leave_balance", "create_ticket",
-    "approve_leave", "reject_leave", "assign_ticket",
-    "create_announcement", "assign_employee_to_project",
+    "apply_leave", "check_leave_balance", "get_my_leaves",
+    "create_ticket", "check_ticket_status", "view_own_projects",
+    "approve_leave", "reject_leave", "list_pending_approvals",
+    "assign_ticket", "create_announcement", "assign_employee_to_project",
+    "search_employees_by_skill", "check_project_assignments",
 ])
 def test_manager_can_perform_all_manager_actions(action):
     assert can_perform(MANAGER, action) is True
@@ -54,9 +58,11 @@ def test_manager_cannot_create_project():
 # ─── ADMIN role ───────────────────────────────────────────────────────────────
 
 @pytest.mark.parametrize("action", [
-    "apply_leave", "check_leave_balance", "create_ticket",
-    "approve_leave", "reject_leave", "assign_ticket",
-    "create_announcement", "assign_employee_to_project", "create_project",
+    "apply_leave", "check_leave_balance", "get_my_leaves",
+    "create_ticket", "check_ticket_status", "view_own_projects",
+    "approve_leave", "reject_leave", "list_pending_approvals",
+    "assign_ticket", "create_announcement", "assign_employee_to_project",
+    "search_employees_by_skill", "check_project_assignments", "create_project",
 ])
 def test_admin_can_perform_all_actions(action):
     assert can_perform(ADMIN, action) is True

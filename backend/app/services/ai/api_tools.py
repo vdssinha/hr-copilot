@@ -13,16 +13,23 @@ from app.services.leave_service import (
     check_leave_balance as _check_leave_balance,
     approve_leave as _approve_leave,
     reject_leave as _reject_leave,
+    list_pending_approvals as _list_pending_approvals,
+    get_my_leaves as _get_my_leaves,
 )
 from app.services.ticket_service import (
     create_ticket as _create_ticket,
     assign_ticket as _assign_ticket,
+    check_ticket_status as _check_ticket_status,
 )
 from app.services.announcement_service import (
     create_announcement as _create_announcement,
 )
 from app.services.project_service import (
     assign_employee_to_project as _assign_employee_to_project,
+    view_own_projects as _view_own_projects,
+    search_employees_by_skill as _search_employees_by_skill,
+    check_project_assignments as _check_project_assignments,
+    create_project as _create_project,
 )
 
 
@@ -103,3 +110,36 @@ def assign_employee_to_project(
         db=db, actor=actor,
         employee_id=employee_id, project_id=project_id, role=role,
     )
+
+
+def view_own_projects(db: Session, user: Employee) -> dict:
+    return _view_own_projects(db=db, user=user)
+
+
+def search_employees_by_skill(db: Session, actor: Employee, skill_name: str) -> dict:
+    return _search_employees_by_skill(db=db, actor=actor, skill_name=skill_name)
+
+
+def check_project_assignments(db: Session, actor: Employee) -> dict:
+    return _check_project_assignments(db=db, actor=actor)
+
+
+def create_project(
+    db: Session, actor: Employee,
+    name: str, description: str = "", status: str = "PLANNING",
+) -> dict:
+    return _create_project(db=db, actor=actor, name=name, description=description, status=status)
+
+
+# ─── Queries (read-only) ──────────────────────────────────────────────────────
+
+def check_ticket_status(db: Session, user: Employee, limit: int = 20) -> dict:
+    return _check_ticket_status(db=db, user=user, limit=limit)
+
+
+def list_pending_approvals(db: Session, actor: Employee) -> dict:
+    return _list_pending_approvals(db=db, actor=actor)
+
+
+def get_my_leaves(db: Session, user: Employee, limit: int = 20) -> dict:
+    return _get_my_leaves(db=db, user=user, limit=limit)

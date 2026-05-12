@@ -1,13 +1,13 @@
 from app.models.employee import Employee, EmployeeRole
 
 _EMPLOYEE_BASE = frozenset({
-    "apply_leave", "check_leave_balance", "create_ticket",
-    "check_ticket_status", "view_own_projects",
+    "apply_leave", "check_leave_balance", "get_my_leaves",
+    "create_ticket", "check_ticket_status", "view_own_projects",
 })
 
 _MANAGER_EXTRA = frozenset({
-    "approve_leave", "reject_leave", "assign_ticket",
-    "view_team_leave", "search_employees_by_skill",
+    "approve_leave", "reject_leave", "list_pending_approvals",
+    "assign_ticket", "search_employees_by_skill",
     "check_project_assignments", "create_announcement",
     "assign_employee_to_project",
 })

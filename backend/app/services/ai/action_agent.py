@@ -17,8 +17,11 @@ from app.services.ai.memory import build_memory_section, maybe_summarize, store_
 from app.services.ai.api_tools import (
     apply_leave, check_leave_balance,
     approve_leave, reject_leave,
-    create_ticket, assign_ticket,
+    list_pending_approvals, get_my_leaves,
+    create_ticket, assign_ticket, check_ticket_status,
     create_announcement, assign_employee_to_project,
+    view_own_projects, search_employees_by_skill,
+    check_project_assignments, create_project,
 )
 from app.services.ai import factory as _factory
 from app.services.ai.permissions import can_perform, allowed_actions
@@ -69,12 +72,19 @@ Respond ONLY with JSON:
 Available actions:
 - apply_leave: leave_type (CASUAL/SICK/ANNUAL/UNPAID), start_date (YYYY-MM-DD), end_date (YYYY-MM-DD), reason (str, optional), is_half_day (bool), half_day_period (MORNING/AFTERNOON/null)
 - check_leave_balance: year (optional int)
+- get_my_leaves: limit (optional int, default 20) — list own leave requests with status
 - approve_leave: request_id (int)
 - reject_leave: request_id (int)
+- list_pending_approvals: no params — list pending leave requests for your direct reports
 - create_ticket: title (str), description (str), category (IT/HR/FACILITIES/FINANCE/OTHER), priority (LOW/MEDIUM/HIGH/CRITICAL)
+- check_ticket_status: limit (optional int, default 20) — list own tickets with their status
 - assign_ticket: ticket_id (int), assignee_id (int), status (optional)
 - create_announcement: title (str), content (str), category (GENERAL/HR/IT/FACILITIES/CULTURE), is_pinned (bool)
 - assign_employee_to_project: employee_id (int), project_id (int), role (str)
+- view_own_projects: no params — list own active project assignments
+- search_employees_by_skill: skill_name (str) — find employees with a given skill
+- check_project_assignments: no params — list project assignments for your team
+- create_project: name (str), description (str, optional), status (PLANNING/ONGOING/COMPLETED/ON_HOLD, optional)
 
 ----------------------
 DECISION RULE
@@ -187,12 +197,19 @@ def run_action(db: Session, user: Employee, message: str, history: list = None, 
     dispatch = {
         "apply_leave": lambda: apply_leave(db, user, **params),
         "check_leave_balance": lambda: check_leave_balance(db, user, **params),
+        "get_my_leaves": lambda: get_my_leaves(db, user, **params),
         "approve_leave": lambda: approve_leave(db, user, **params),
         "reject_leave": lambda: reject_leave(db, user, **params),
+        "list_pending_approvals": lambda: list_pending_approvals(db, user),
         "create_ticket": lambda: create_ticket(db, user, **params),
+        "check_ticket_status": lambda: check_ticket_status(db, user, **params),
         "assign_ticket": lambda: assign_ticket(db, user, **params),
         "create_announcement": lambda: create_announcement(db, user, **params),
         "assign_employee_to_project": lambda: assign_employee_to_project(db, user, **params),
+        "view_own_projects": lambda: view_own_projects(db, user),
+        "search_employees_by_skill": lambda: search_employees_by_skill(db, user, **params),
+        "check_project_assignments": lambda: check_project_assignments(db, user),
+        "create_project": lambda: create_project(db, user, **params),
     }
 
     handler = dispatch.get(action)
