@@ -11,3 +11,4 @@ class ChatRequest(BaseModel):
     message: str
     history: List[HistoryMessage] = []
     session_id: Optional[str] = None  # frontend-generated UUID; enables Tier 2/3 memory
+    confirmed: bool = False            # human-in-the-loop: re-send with confirmed=True to execute

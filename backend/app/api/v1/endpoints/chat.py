@@ -84,7 +84,7 @@ def chat_actions(
         if blocked:
             log_ai_interaction(db, current_user, payload.message, AIIntent.UNKNOWN, ActionStatus.REFUSED, tool_name=blocked.route)
             return APIResponse.ok({"answer": blocked.response, "success": False, "action": blocked.route, "data": None})
-        result = run_action(db, current_user, message, history=[h.dict() for h in payload.history], session_id=payload.session_id)
+        result = run_action(db, current_user, message, history=[h.dict() for h in payload.history], session_id=payload.session_id, confirmed=payload.confirmed)
         log_ai_interaction(
             db, current_user, payload.message,
             intent=AIIntent.HR_ACTION,

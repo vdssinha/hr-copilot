@@ -46,8 +46,8 @@ export const chatPolicy = (message: string, token: string, history: HistoryMessa
 export const chatSQL = (message: string, token: string, history: HistoryMessage[] = []) =>
   post("/chat/sql", { message, history }, token);
 
-export const chatActions = (message: string, token: string, history: HistoryMessage[] = []) =>
-  post("/chat/actions", { message, history }, token);
+export const chatActions = (message: string, token: string, history: HistoryMessage[] = [], confirmed = false) =>
+  post("/chat/actions", { message, history, confirmed }, token);
 
 export const chatRouter = (message: string, token: string, history: HistoryMessage[] = []) =>
   post("/chat/router", { message, history }, token);

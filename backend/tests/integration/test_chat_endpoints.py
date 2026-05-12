@@ -243,17 +243,29 @@ def test_actions_endpoint_manager_can_approve_leave(
     fake_llm.generate.side_effect = [llm_response, "Leave has been approved."]
 
     with patch.object(ai_factory, "get_llm_provider", return_value=fake_llm):
+        # First request: confirmation_required=True (approve_leave is high-impact)
         resp = client.post(
             "/api/v1/chat/actions",
             json={"message": f"Approve leave request {leave_id}"},
             headers=_auth(manager_token),
         )
-
     assert resp.status_code == 200
-    body = resp.json()
-    data = body["data"]
+    data = resp.json()["data"]
     assert data["action"] == "approve_leave"
-    assert data["success"] is True
+    assert data["confirmation_required"] is True
+
+    # Second request: re-send with confirmed=True to actually execute
+    fake_llm.generate.side_effect = [llm_response, "Leave has been approved."]
+    with patch.object(ai_factory, "get_llm_provider", return_value=fake_llm):
+        resp2 = client.post(
+            "/api/v1/chat/actions",
+            json={"message": f"Approve leave request {leave_id}", "confirmed": True},
+            headers=_auth(manager_token),
+        )
+    assert resp2.status_code == 200
+    data2 = resp2.json()["data"]
+    assert data2["action"] == "approve_leave"
+    assert data2["success"] is True
 
 
 def test_actions_employee_cannot_create_announcement(client, employee_token):

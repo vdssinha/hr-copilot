@@ -104,6 +104,18 @@ class ActionResult(TypedDict):
     action: str
     success: bool
     data: Optional[dict]
+    confirmation_required: bool   # True → frontend must ask user before executing
+
+
+# Actions that require explicit human confirmation before execution.
+_HIGH_IMPACT_ACTIONS: frozenset[str] = frozenset({
+    "approve_leave",
+    "reject_leave",
+    "assign_employee_to_project",
+    "create_announcement",
+    "assign_ticket",
+    "create_project",
+})
 
 
 def _parse_llm_json(raw: str) -> dict:
@@ -145,7 +157,27 @@ def _summarize_result(llm, action: str, message: str, result: dict) -> str:
     return llm.generate(prompt, system="Summarize HR action results clearly.", max_tokens=AI_MAX_TOKENS_ACTION_AGENT_SUMMARY)
 
 
-def run_action(db: Session, user: Employee, message: str, history: list = None, session_id: Optional[str] = None) -> ActionResult:
+def _build_confirmation_prompt(action: str, params: dict) -> str:
+    """Return a human-readable summary of what will happen for high-impact actions."""
+    if action == "approve_leave":
+        return f"Confirm approval of leave request #{params.get('request_id')}?"
+    if action == "reject_leave":
+        return f"Confirm rejection of leave request #{params.get('request_id')}?"
+    if action == "assign_employee_to_project":
+        return (
+            f"Confirm assigning employee #{params.get('employee_id')} to project "
+            f"#{params.get('project_id')} as {params.get('role', 'member')}?"
+        )
+    if action == "create_announcement":
+        return f"Confirm posting announcement: \"{params.get('title')}\"?"
+    if action == "assign_ticket":
+        return f"Confirm updating ticket #{params.get('ticket_id')}?"
+    if action == "create_project":
+        return f"Confirm creating project: \"{params.get('name')}\"?"
+    return f"Confirm action: {action.replace('_', ' ')}?"
+
+
+def run_action(db: Session, user: Employee, message: str, history: list = None, session_id: Optional[str] = None, confirmed: bool = False) -> ActionResult:
     maybe_summarize(db, user.id, session_id, "action_agent", history or [])
     mem = build_memory_section(db, user.id, session_id, "action_agent")
     extract_system = _EXTRACT_SYSTEM.format(memory_section=mem)
@@ -161,7 +193,7 @@ def run_action(db: Session, user: Employee, message: str, history: list = None, 
     except (json.JSONDecodeError, ValueError):
         return ActionResult(
             answer="I couldn't understand the action. Please rephrase your request.",
-            action="UNKNOWN", success=False, data=None,
+            action="UNKNOWN", success=False, data=None, confirmation_required=False,
         )
 
     action = parsed.get("action", "UNKNOWN")
@@ -172,28 +204,36 @@ def run_action(db: Session, user: Employee, message: str, history: list = None, 
     # Step 2: Clarification needed — missing required params
     if action == "CLARIFY":
         question = clarification_question or "Could you provide more details? (e.g. leave type, dates)"
-        return ActionResult(answer=question, action="CLARIFY", success=False, data=None)
+        return ActionResult(answer=question, action="CLARIFY", success=False, data=None, confirmation_required=False)
 
     # Step 3: Permission check
     if action == "UNKNOWN":
         return ActionResult(
             answer="I'm not sure what action you'd like to perform. Could you be more specific?",
-            action="UNKNOWN", success=False, data=None,
+            action="UNKNOWN", success=False, data=None, confirmation_required=False,
         )
 
     if cannot_do:
         return ActionResult(
             answer=f"You do not have permission to {action.replace('_', ' ')}.",
-            action=action, success=False, data=None,
+            action=action, success=False, data=None, confirmation_required=False,
         )
 
     if not can_perform(user, action):
         return ActionResult(
             answer=f"You do not have permission to {action.replace('_', ' ')}.",
-            action=action, success=False, data=None,
+            action=action, success=False, data=None, confirmation_required=False,
         )
 
-    # Step 3: Dispatch to tool
+    # Step 3a: Confirmation gate for high-impact actions
+    if action in _HIGH_IMPACT_ACTIONS and not confirmed:
+        prompt = _build_confirmation_prompt(action, params)
+        return ActionResult(
+            answer=prompt,
+            action=action, success=False, data=None, confirmation_required=True,
+        )
+
+    # Step 3b: Dispatch to tool
     dispatch = {
         "apply_leave": lambda: apply_leave(db, user, **params),
         "check_leave_balance": lambda: check_leave_balance(db, user, **params),
@@ -215,7 +255,7 @@ def run_action(db: Session, user: Employee, message: str, history: list = None, 
     handler = dispatch.get(action)
     if not handler:
         return ActionResult(
-            answer="That action is not yet supported.", action=action, success=False, data=None
+            answer="That action is not yet supported.", action=action, success=False, data=None, confirmation_required=False,
         )
 
     try:
@@ -223,7 +263,7 @@ def run_action(db: Session, user: Employee, message: str, history: list = None, 
     except TypeError as e:
         return ActionResult(
             answer=f"Missing required information for {action.replace('_', ' ')}: {e}",
-            action=action, success=False, data=None,
+            action=action, success=False, data=None, confirmation_required=False,
         )
 
     # Step 4: Summarize
@@ -235,4 +275,5 @@ def run_action(db: Session, user: Employee, message: str, history: list = None, 
         action=action,
         success=result.get("success", False),
         data=result.get("data"),
+        confirmation_required=False,
     )

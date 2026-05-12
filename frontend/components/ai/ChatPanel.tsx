@@ -25,6 +25,8 @@ interface Message {
   actionSuccess?: boolean;
   actionData?: Record<string, unknown>;
   error?: string;
+  confirmationRequired?: boolean;
+  pendingMessage?: string;  // original user message to re-send if confirmed
 }
 
 interface ChatPanelProps {
@@ -62,6 +64,38 @@ export function ChatPanel({ token, mode }: ChatPanelProps) {
   const [loading, setLoading]   = useState(false);
   const [statusText, setStatusText] = useState("");
   const bottomRef = useRef<HTMLDivElement>(null);
+
+  async function confirmAction(pendingMessage: string, messageIndex: number) {
+    // Re-send the original message with confirmed=true
+    setLoading(true);
+    // Mark the confirmation bubble as resolved
+    setMessages((m) => m.map((msg, i) => i === messageIndex ? { ...msg, confirmationRequired: false, text: msg.text + "\n\n*Confirmed.*" } : msg));
+    const history: HistoryMessage[] = messages
+      .filter((_, i) => i !== messageIndex)
+      .map((m) => ({ role: m.role, content: m.text }));
+    try {
+      const resp = await chatActions(pendingMessage, token, history, true) as Record<string, unknown>;
+      const d = resp.data as Record<string, unknown>;
+      setMessages((m) => [...m, {
+        role: "assistant",
+        text: (d?.answer ?? (resp as Record<string, unknown>).error ?? "Error") as string,
+        action: d?.action as string,
+        actionSuccess: d?.success as boolean,
+        actionData: d?.data as Record<string, unknown>,
+        confirmation_required: false,
+      } as Message]);
+    } catch {
+      setMessages((m) => [...m, { role: "assistant", text: "Network error.", error: "network" }]);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  function cancelAction(messageIndex: number) {
+    setMessages((m) => m.map((msg, i) =>
+      i === messageIndex ? { ...msg, confirmationRequired: false, text: "Action cancelled." } : msg
+    ));
+  }
 
   useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: "smooth" }); }, [messages, loading]);
 
@@ -104,7 +138,16 @@ export function ChatPanel({ token, mode }: ChatPanelProps) {
       } else if (mode === "actions") {
         const resp = await chatActions(text, token, history) as Record<string, unknown>;
         const d = resp.data as Record<string, unknown>;
-        setMessages((m) => [...m, { role: "assistant", text: (d?.answer ?? resp.error ?? "Error") as string, action: d?.action as string, actionSuccess: d?.success as boolean, actionData: d?.data as Record<string, unknown> }]);
+        const needsConfirm = Boolean(d?.confirmation_required);
+        setMessages((m) => [...m, {
+          role: "assistant",
+          text: (d?.answer ?? (resp as Record<string, unknown>).error ?? "Error") as string,
+          action: d?.action as string,
+          actionSuccess: d?.success as boolean,
+          actionData: d?.data as Record<string, unknown>,
+          confirmationRequired: needsConfirm,
+          pendingMessage: needsConfirm ? text : undefined,
+        }]);
 
       } else if (mode === "langgraph") {
         const resp = await chatLangGraph(text, token, history) as Record<string, unknown>;
@@ -188,10 +231,30 @@ export function ChatPanel({ token, mode }: ChatPanelProps) {
                   </div>
                 )}
 
+                {/* Confirmation prompt */}
+                {msg.confirmationRequired && msg.pendingMessage && (
+                  <div className="mt-3 flex gap-2">
+                    <button
+                      onClick={() => confirmAction(msg.pendingMessage!, i)}
+                      disabled={loading}
+                      className="rounded-md bg-brand px-3 py-1.5 text-xs font-medium text-white hover:bg-brand/90 disabled:opacity-50 transition-colors"
+                    >
+                      Confirm
+                    </button>
+                    <button
+                      onClick={() => cancelAction(i)}
+                      disabled={loading}
+                      className="rounded-md border border-slate-200 px-3 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-50 disabled:opacity-50 transition-colors"
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                )}
+
                 {/* Rich results */}
                 {msg.sources && <SourceList sources={msg.sources as { title: string; category: string; filename?: string }[]} />}
                 {msg.rows && msg.rows.length > 0 && <SQLResultTable rows={msg.rows as Record<string, unknown>[]} sql={msg.sql} showSQL />}
-                {msg.action && <ActionResultCard action={msg.action} success={msg.actionSuccess ?? false} data={msg.actionData} />}
+                {msg.action && !msg.confirmationRequired && <ActionResultCard action={msg.action} success={msg.actionSuccess ?? false} data={msg.actionData} />}
 
                 {/* Error badge */}
                 {msg.error && (
