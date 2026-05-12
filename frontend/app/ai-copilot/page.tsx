@@ -3,36 +3,46 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
-  Bot, Zap, FileText, Database, ListTodo, GitBranch, Users,
-  LogOut, ChevronRight, Settings,
+  Bot, Zap, FileText, Database, ListTodo, Users,
+  LogOut, ChevronRight, Settings, Calendar, ClipboardCheck,
 } from "lucide-react";
 import { ChatPanel } from "@/components/ai/ChatPanel";
+import { PendingApprovals } from "@/components/ai/PendingApprovals";
+import { MyLeaves } from "@/components/ai/MyLeaves";
 import { getToken, getUser, clearAuth } from "@/lib/auth";
 
-type Mode = "router" | "policy" | "sql" | "actions" | "langgraph" | "hr-data";
+type Mode = "router" | "policy" | "sql" | "actions" | "hr-data" | "my-leaves" | "pending-approvals";
 
-const MODES: { id: Mode; label: string; description: string; icon: React.ElementType }[] = [
-  { id: "router",   label: "Smart Copilot",  description: "Auto-routes to the right assistant", icon: Zap },
-  { id: "policy",   label: "HR Policy",      description: "Answer HR policy questions",          icon: FileText },
-  { id: "sql",      label: "People & Data",  description: "Query employees, projects, skills",   icon: Database },
-  { id: "actions",  label: "HR Tasks",       description: "Apply leave, create tickets, more",   icon: ListTodo },
-  { id: "langgraph",label: "LangGraph",      description: "Multi-agent graph orchestration",     icon: GitBranch },
-  { id: "hr-data",  label: "HR Employee Data",description: "Semantic search over employee CSV", icon: Users },
+const MANAGER_ROLES = new Set(["MANAGER", "HR", "ADMIN", "C_LEVEL"]);
+
+const ALL_MODES: { id: Mode; label: string; description: string; icon: React.ElementType; managerOnly?: boolean }[] = [
+  { id: "router",             label: "Smart Copilot",       description: "Auto-routes to the right assistant",       icon: Zap },
+  { id: "policy",             label: "HR Policy",           description: "Answer HR policy questions",               icon: FileText },
+  { id: "sql",                label: "People & Data",       description: "Query employees, projects, skills",        icon: Database },
+  { id: "actions",            label: "HR Tasks",            description: "Apply leave, create tickets, and more",    icon: ListTodo },
+  { id: "hr-data",            label: "HR Employee Data",    description: "Semantic search over employee records",    icon: Users },
+  { id: "my-leaves",          label: "My Leaves",           description: "View your leave history and status",       icon: Calendar },
+  { id: "pending-approvals",  label: "Pending Approvals",   description: "Approve or reject team leave requests",    icon: ClipboardCheck, managerOnly: true },
 ];
 
 const ROLE_COLORS: Record<string, string> = {
-  ADMIN:    "bg-violet-100 text-violet-700",
-  MANAGER:  "bg-blue-100 text-blue-700",
-  EMPLOYEE: "bg-emerald-100 text-emerald-700",
+  ADMIN:     "bg-violet-100 text-violet-700",
+  MANAGER:   "bg-blue-100 text-blue-700",
+  EMPLOYEE:  "bg-emerald-100 text-emerald-700",
+  HR:        "bg-pink-100 text-pink-700",
+  MARKETING: "bg-orange-100 text-orange-700",
+  C_LEVEL:   "bg-purple-100 text-purple-700",
 };
+
+const CHAT_MODES = new Set(["router", "policy", "sql", "actions", "hr-data"]);
 
 export default function AICopilotPage() {
   const router = useRouter();
-  const [token, setToken]   = useState<string | null>(null);
-  const [mode, setMode]     = useState<Mode>("router");
+  const [token, setToken]     = useState<string | null>(null);
+  const [mode, setMode]       = useState<Mode>("router");
   const [userName, setUserName] = useState("");
   const [userRole, setUserRole] = useState("");
-  const [ready, setReady]   = useState(false);
+  const [ready, setReady]     = useState(false);
 
   useEffect(() => {
     const t = getToken();
@@ -54,7 +64,9 @@ export default function AICopilotPage() {
 
   if (!ready) return null;
 
-  const activeMode = MODES.find((m) => m.id === mode)!;
+  const isManager = MANAGER_ROLES.has(userRole);
+  const MODES = ALL_MODES.filter((m) => !m.managerOnly || isManager);
+  const activeMode = MODES.find((m) => m.id === mode) ?? MODES[0];
 
   return (
     <div className="flex h-screen overflow-hidden bg-slate-50">
@@ -150,7 +162,12 @@ export default function AICopilotPage() {
           </div>
         </header>
 
-        <ChatPanel key={mode} token={token!} mode={mode} />
+        {/* Route to correct panel */}
+        {CHAT_MODES.has(mode) && (
+          <ChatPanel key={mode} token={token!} mode={mode as Parameters<typeof ChatPanel>[0]["mode"]} />
+        )}
+        {mode === "my-leaves" && <MyLeaves token={token!} />}
+        {mode === "pending-approvals" && <PendingApprovals token={token!} />}
       </main>
     </div>
   );

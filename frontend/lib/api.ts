@@ -65,6 +65,40 @@ export type StreamEvent =
   | { type: "error"; message: string }
   | { type: "done" };
 
+// ── Leaves API ───────────────────────────────────────────────────────────────
+
+export interface LeaveRequest {
+  id: number;
+  employee_id: number;
+  employee_name?: string;
+  leave_type: string;
+  start_date: string;
+  end_date: string;
+  reason: string | null;
+  status: string;
+  created_at: string;
+}
+
+export const leavesApi = {
+  myLeaves: (token: string) =>
+    request<{ success: boolean; data: { leaves: LeaveRequest[] } }>("/leaves/requests/my", { method: "GET" }, token),
+
+  pendingApprovals: (token: string) =>
+    request<{ success: boolean; data: { pending: LeaveRequest[] } }>("/leaves/requests/pending", { method: "GET" }, token),
+
+  approve: (token: string, requestId: number) =>
+    request<{ success: boolean; data: unknown }>(`/leaves/requests/${requestId}`, {
+      method: "PATCH",
+      body: JSON.stringify({ action: "approve" }),
+    }, token),
+
+  reject: (token: string, requestId: number) =>
+    request<{ success: boolean; data: unknown }>(`/leaves/requests/${requestId}`, {
+      method: "PATCH",
+      body: JSON.stringify({ action: "reject" }),
+    }, token),
+};
+
 // ── Admin types ───────────────────────────────────────────────────────────────
 
 export interface AdminUser {
