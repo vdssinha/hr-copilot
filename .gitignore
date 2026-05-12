@@ -36,3 +36,5 @@ out/
 
 # Code review artifacts
 pr_reviews/
+backend/data/policies/
+data/
