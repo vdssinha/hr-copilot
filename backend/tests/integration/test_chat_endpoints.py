@@ -47,6 +47,8 @@ def test_policy_endpoint_returns_200(client, employee_token):
     fake_llm = _fake_llm("You are entitled to 12 sick leave days per year.")
     fake_embedder = MagicMock()
     fake_embedder.embed_query.return_value = [0.1] * 768
+    # SemanticRouter._index() calls embed(utterances) — return proper 2D shape
+    fake_embedder.embed.side_effect = lambda texts: [[0.1] * 768 for _ in texts]
 
     fake_doc = MagicMock()
     fake_doc.content = "Sick leave: 12 days per year."
@@ -78,6 +80,7 @@ def test_policy_endpoint_all_roles_allowed(client, manager_token, admin_token):
     fake_llm = _fake_llm("WFH is allowed.")
     fake_embedder = MagicMock()
     fake_embedder.embed_query.return_value = [0.1] * 768
+    fake_embedder.embed.side_effect = lambda texts: [[0.1] * 768 for _ in texts]
     fake_doc = MagicMock()
     fake_doc.content = "WFH allowed after probation."
     fake_doc.metadata = {"title": "WFH Policy", "category": "HR", "filename": "wfh.md"}

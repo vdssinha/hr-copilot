@@ -7,6 +7,15 @@ import pytest
 # test_live_all_roles.py is a standalone script that calls sys.exit() at module level.
 # Exclude it from pytest collection; run it directly: python tests/integration/test_live_all_roles.py
 collect_ignore = ["integration/test_live_all_roles.py"]
+
+
+@pytest.fixture(autouse=True)
+def _clear_pipeline_cache():
+    """Clear get_pipeline lru_cache before every test so mock embedders take effect."""
+    from app.services.ai.pipeline import get_pipeline
+    get_pipeline.cache_clear()
+    yield
+    get_pipeline.cache_clear()
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
