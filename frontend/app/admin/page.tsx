@@ -6,7 +6,7 @@ import { Trash2, Pencil } from "lucide-react";
 import { admin, AdminUser, AdminRole, AdminCategory, AdminPolicy, AdminPolicyGroup } from "@/lib/api";
 import { getToken, getUser, clearAuth } from "@/lib/auth";
 
-type Tab = "users" | "documents" | "access";
+type Tab = "users" | "documents" | "access" | "ai-stats";
 
 const POLICY_CATEGORIES = ["LEAVE", "ATTENDANCE", "CODE_OF_CONDUCT", "BENEFITS", "COMPENSATION", "IT", "GENERAL"];
 const ROLES = ["EMPLOYEE", "MANAGER", "ADMIN", "HR", "MARKETING", "C_LEVEL"];
@@ -61,6 +61,8 @@ export default function AdminPage() {
   const [roles, setRoles] = useState<AdminRole[]>([]);
   const [categories, setCategories] = useState<AdminCategory[]>([]);
   const [policies, setPolicies] = useState<AdminPolicy[]>([]);
+  const [aiStats, setAiStats] = useState<Record<string, unknown> | null>(null);
+  const [aiStatsLoading, setAiStatsLoading] = useState(false);
 
   // create user form
   const [showCreateUser, setShowCreateUser] = useState(false);
@@ -124,6 +126,10 @@ export default function AdminPage() {
     loadAll();
   }, [token]);
 
+  useEffect(() => {
+    if (tab === "ai-stats" && token && !aiStats) loadAiStats();
+  }, [tab, token]);
+
   async function loadAll() {
     setLoading(true);
     try {
@@ -141,6 +147,19 @@ export default function AdminPage() {
       if (g.status === 200) setPolicyGroups(g.data);
     } finally {
       setLoading(false);
+    }
+  }
+
+  async function loadAiStats() {
+    setAiStatsLoading(true);
+    try {
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000/api/v1"}/admin/ai-stats`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const body = await res.json();
+      if (body.success) setAiStats(body.data);
+    } finally {
+      setAiStatsLoading(false);
     }
   }
 
@@ -367,10 +386,10 @@ export default function AdminPage() {
       {/* Tabs */}
       <div className="bg-white border-b border-slate-200 px-6">
         <div className="flex gap-1">
-          {(["users", "documents", "access"] as Tab[]).map(t => (
+          {(["users", "documents", "access", "ai-stats"] as Tab[]).map(t => (
             <button key={t} onClick={() => setTab(t)}
               className={`px-4 py-3 text-sm font-medium capitalize border-b-2 transition ${tab === t ? "border-brand text-brand" : "border-transparent text-slate-500 hover:text-slate-700"}`}>
-              {t === "access" ? "Access Control" : t}
+              {t === "access" ? "Access Control" : t === "ai-stats" ? "AI Dashboard" : t}
               {t === "documents" && <span className="ml-1.5 text-xs bg-slate-100 text-slate-500 rounded-full px-1.5 py-0.5">{policies.length}</span>}
             </button>
           ))}
@@ -630,7 +649,7 @@ export default function AdminPage() {
             </div>
           </div>
 
-        ) : (
+        ) : tab === "access" ? (
 
           /* ── Access Control tab ─────────────────────────────────── */
           <div className="space-y-10">
@@ -875,7 +894,104 @@ export default function AdminPage() {
             </div>
 
           </div>
-        )}
+
+        ) : tab === "ai-stats" ? (
+
+          /* ── AI Dashboard tab ──────────────────────────────────── */
+          <div className="space-y-6">
+            <div className="flex items-center justify-between">
+              <h2 className="text-base font-semibold text-gray-800">AI Usage Dashboard</h2>
+              <button onClick={loadAiStats} disabled={aiStatsLoading}
+                className="text-xs text-slate-500 border border-slate-200 px-3 py-1.5 rounded-md hover:bg-slate-50 disabled:opacity-50 transition">
+                {aiStatsLoading ? "Loading…" : "Refresh"}
+              </button>
+            </div>
+
+            {aiStatsLoading && <div className="text-center text-gray-400 py-16 text-sm">Loading stats…</div>}
+
+            {!aiStatsLoading && aiStats && (() => {
+              const s = aiStats as {
+                total_requests: number; refused_count: number; avg_latency_ms: number | null;
+                rag_no_answer_rate_pct: number; sql_blocked_count: number; period_days: number;
+                by_intent: { intent: string; count: number }[];
+                by_tool: { tool: string; count: number }[];
+                daily: { date: string; count: number }[];
+              };
+              const maxDaily = Math.max(...s.daily.map(d => d.count), 1);
+              return (
+                <>
+                  {/* Stat cards */}
+                  <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
+                    {[
+                      { label: "Total Requests", value: s.total_requests, color: "text-brand" },
+                      { label: "Failed Permissions", value: s.refused_count, color: "text-red-600" },
+                      { label: "Avg Latency", value: s.avg_latency_ms != null ? `${Math.round(s.avg_latency_ms)}ms` : "—", color: "text-amber-600" },
+                      { label: "RAG No-Answer %", value: `${s.rag_no_answer_rate_pct}%`, color: "text-orange-600" },
+                      { label: "SQL Blocked", value: s.sql_blocked_count, color: "text-violet-600" },
+                      { label: "Period", value: `${s.period_days}d`, color: "text-slate-500" },
+                    ].map(({ label, value, color }) => (
+                      <div key={label} className="rounded-lg border border-slate-200 bg-white px-4 py-3">
+                        <p className="text-xs text-slate-500 mb-1">{label}</p>
+                        <p className={`text-xl font-bold ${color}`}>{String(value)}</p>
+                      </div>
+                    ))}
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {/* By Intent */}
+                    <div className="rounded-lg border border-slate-200 bg-white p-4">
+                      <p className="text-sm font-semibold text-slate-700 mb-3">Most Common Intents</p>
+                      <div className="space-y-2">
+                        {s.by_intent.map(({ intent, count }) => (
+                          <div key={intent} className="flex items-center gap-2">
+                            <span className="text-xs text-slate-600 w-28 shrink-0">{intent}</span>
+                            <div className="flex-1 h-2 bg-slate-100 rounded-full overflow-hidden">
+                              <div className="h-2 bg-brand rounded-full" style={{ width: `${(count / s.total_requests) * 100}%` }} />
+                            </div>
+                            <span className="text-xs text-slate-500 w-6 text-right">{count}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* By Tool */}
+                    <div className="rounded-lg border border-slate-200 bg-white p-4">
+                      <p className="text-sm font-semibold text-slate-700 mb-3">Most Used Tools</p>
+                      <div className="space-y-2">
+                        {s.by_tool.map(({ tool, count }) => (
+                          <div key={tool} className="flex items-center gap-2">
+                            <span className="text-xs text-slate-600 w-28 shrink-0 truncate">{tool}</span>
+                            <div className="flex-1 h-2 bg-slate-100 rounded-full overflow-hidden">
+                              <div className="h-2 bg-emerald-500 rounded-full" style={{ width: `${(count / s.total_requests) * 100}%` }} />
+                            </div>
+                            <span className="text-xs text-slate-500 w-6 text-right">{count}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Daily requests bar chart */}
+                  <div className="rounded-lg border border-slate-200 bg-white p-4">
+                    <p className="text-sm font-semibold text-slate-700 mb-3">Requests per Day (last 14 days)</p>
+                    <div className="flex items-end gap-1 h-24">
+                      {s.daily.map(({ date, count }) => (
+                        <div key={date} className="flex-1 flex flex-col items-center gap-1">
+                          <div className="w-full bg-brand/80 rounded-t"
+                            style={{ height: `${(count / maxDaily) * 80}px`, minHeight: count > 0 ? "4px" : "0" }}
+                            title={`${date}: ${count}`}
+                          />
+                          <span className="text-[9px] text-slate-400 rotate-45 origin-left">{date.slice(5)}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </>
+              );
+            })()}
+          </div>
+
+        ) : null}
       </main>
     </div>
   );
