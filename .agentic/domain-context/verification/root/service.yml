@@ -1,0 +1,25 @@
+schema_version: 1
+pack_id: service
+scope_id: root
+verification_mode: manual
+verification_status: verified
+staleness_status: fresh
+verified_at: '2026-05-12T17:51:27Z'
+approved_by:
+- vijaydeep
+source_refs:
+- .agentic/domain-context/source/root/service.yml
+source_hashes:
+  .agentic/domain-context/source/root/service.yml: 5a5cd679781ed76ed9146f6b0f849ab8967ae56e6f4a840af893cd83157d0857
+locked_source_refs: []
+derived_summary_hash: c626a6954a4ecc71b149c67b7a28561a394221793e47d652ea6ad884bede05d7
+producer_run:
+  schema_version: 1
+  pack_id: service
+  generated_at: '2026-05-12T17:51:27Z'
+  producer: domain_context.bootstrap
+  generated_refs:
+  - .agentic/domain-context/source/root/service.yml
+  reused_refs: []
+  warnings: []
+  errors: []

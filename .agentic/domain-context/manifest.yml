@@ -1,0 +1,14 @@
+schema_version: 3
+format: simplified-artifact-control-plane
+packs_present:
+- delivery
+- engineering
+- service
+verified_packs:
+- delivery
+- engineering
+- service
+stale_packs: []
+updated_at: '2026-05-12T17:55:39Z'
+provenance:
+- managed by devx-domain-context

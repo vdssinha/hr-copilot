@@ -1,0 +1,77 @@
+schema_version: 1
+pack_id: engineering
+scope_id: root
+verification_mode: auto
+verification_status: verified
+staleness_status: fresh
+verified_at: '2026-05-12T17:55:18Z'
+approved_by:
+- vijaydeep
+source_refs:
+- AGENTS.md
+- CLAUDE.md
+- backend/AGENTS.md
+- backend/CLAUDE.md
+- data/AGENTS.md
+- data/CLAUDE.md
+- docs/AGENTS.md
+- docs/CLAUDE.md
+- eval/AGENTS.md
+- eval/CLAUDE.md
+- frontend/AGENTS.md
+- frontend/CLAUDE.md
+- pr_reviews/AGENTS.md
+- pr_reviews/CLAUDE.md
+- docs/architecture/overview.md
+- docs/architecture/low-level.md
+source_hashes:
+  AGENTS.md: 28dfdf213a2a6184699fd19890ec00327240bbec8318f7fc6fcf72b117257745
+  CLAUDE.md: 397500a2fbd93e86c6d02905f80d3a99282de4bf710508e414b8233e7fb8b95a
+  backend/AGENTS.md: 3ed440519c5e9dbe396341fe896783a6ea780a1af193fad481abf9f322c3bc7e
+  backend/CLAUDE.md: 02d73fcaf852af5cf37fa4a0a756c7bac2f089cf2b5f5713f14e10bdb0c3409f
+  data/AGENTS.md: 8ae797a56ea460266ce6c952fcf50cff9d4121f2f6defb56372f1a15e3c9dca6
+  data/CLAUDE.md: 02d73fcaf852af5cf37fa4a0a756c7bac2f089cf2b5f5713f14e10bdb0c3409f
+  docs/AGENTS.md: b7149ae5d0c769a8ccffe64722946d16f7558384dae7354e647c590da2bdfcf8
+  docs/CLAUDE.md: 02d73fcaf852af5cf37fa4a0a756c7bac2f089cf2b5f5713f14e10bdb0c3409f
+  eval/AGENTS.md: 01f50018f520d70d59450623b92c4d5358a3953c6fa558d3a7aacb12a3623d46
+  eval/CLAUDE.md: 02d73fcaf852af5cf37fa4a0a756c7bac2f089cf2b5f5713f14e10bdb0c3409f
+  frontend/AGENTS.md: 731f38ec63fff45960f8f6f85bd07d0e4f2628d0d494f32402d33d8e5a37671e
+  frontend/CLAUDE.md: 02d73fcaf852af5cf37fa4a0a756c7bac2f089cf2b5f5713f14e10bdb0c3409f
+  pr_reviews/AGENTS.md: 76a2182f839442bac3627ac70cd37cb26d814cc8c7b3fb3cb66409a686a800d9
+  pr_reviews/CLAUDE.md: 02d73fcaf852af5cf37fa4a0a756c7bac2f089cf2b5f5713f14e10bdb0c3409f
+  docs/architecture/overview.md: 89e59d469b492cfea2cfd9c2bd591f6432497ad14e8b9c99ea8407b889dfceaa
+  docs/architecture/low-level.md: f24b86cc592f9d541c2834ca5859795f9ac3b64e6f108fb19564dc32631cfbae
+locked_source_refs:
+- data/AGENTS.md
+- docs/AGENTS.md
+- pr_reviews/AGENTS.md
+derived_summary_hash: 47456500e11a92524686cfbb1f6ca5f9494eb5bfb4fb60d6e2ccf8f382b0f7a8
+producer_run:
+  schema_version: 1
+  pack_id: engineering
+  generated_at: '2026-05-12T17:51:32Z'
+  producer: domain_context.engineering
+  generated_refs:
+  - docs/AGENTS.md
+  - backend/AGENTS.md
+  - data/AGENTS.md
+  - eval/AGENTS.md
+  - frontend/AGENTS.md
+  - pr_reviews/AGENTS.md
+  - backend/CLAUDE.md
+  - data/CLAUDE.md
+  - docs/CLAUDE.md
+  - eval/CLAUDE.md
+  - frontend/CLAUDE.md
+  - pr_reviews/CLAUDE.md
+  - docs/architecture/overview.md
+  - docs/architecture/low-level.md
+  - docs/tech-stack.md
+  reused_refs:
+  - AGENTS.md
+  - CLAUDE.md
+  warnings:
+  - Engineering discovery generated scaffold or bridge artifacts in this run; review
+    them before trusting engineering context.
+  errors: []
+  auto_verify_eligible: false

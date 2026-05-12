@@ -38,3 +38,8 @@ out/
 pr_reviews/
 backend/data/policies/
 data/
+
+# Domain context local state (bootstrap answers, discover runs, evidence)
+.agentic/domain-context/local/
+.agentic/domain-context/readiness-report.md
+.agentic/domain-context/service.md

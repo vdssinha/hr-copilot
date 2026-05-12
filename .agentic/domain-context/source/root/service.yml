@@ -1,0 +1,104 @@
+schema_version: 1
+pack_id: service
+scope_id: root
+service_type: service-or-application
+repo_shape_hint: service-or-application
+analysis:
+  repo_shape_hint: service-or-application
+  detected_languages:
+  - Python
+  - JavaScript
+  - TypeScript
+  manifests:
+  - pyproject.toml
+  docs:
+  - README.md
+  - AGENTS.md
+  - CLAUDE.md
+  entrypoints:
+  - backend/app/main.py
+  test_surfaces:
+  - backend/tests/conftest.py
+  - backend/tests/__init__.py
+  - backend/tests/unit/__init__.py
+  - backend/tests/unit/test_prompt_injection_defense.py
+  - backend/tests/unit/test_hr_data_rag.py
+  - backend/tests/unit/test_leave_service.py
+  - backend/tests/unit/test_policy_rag_rbac.py
+  - backend/tests/unit/test_action_agent_parse.py
+  deploy_surfaces: []
+  observability_surfaces:
+  - backend/data/policies/it/sprint_metrics_2024.md
+  top_level_dirs:
+  - backend
+  - data
+  - docs
+  - eval
+  - frontend
+  - pr_reviews
+  - scripts
+  suggested_non_negotiables:
+  - backward-compatible external contracts
+  - safe rollout and rollback
+  - critical data or state correctness
+  suggested_critical_paths:
+  - primary user-facing flow
+  - deployment and release path
+  - main background processing path
+  suggested_critical_boundaries:
+  - public API contract
+  - observability and alerting contract
+service_boundaries:
+- backend
+- data
+- docs
+- eval
+- public API contract
+- observability and alerting contract
+non_negotiables:
+- "No direct DB writes from AI agents \u2014 all mutations go through service layer"
+- 'Forbidden SQL columns never exposed: hashed_password, bank_account_number, bank_account_name,
+  bank_branch, bank_ifsc, pan_number, pan_name, pan_dob, date_of_birth, current_salary_usd,
+  profile_photo_path, profile_photo_mime'
+- "SQL agent is SELECT-only \u2014 INSERT, UPDATE, DELETE, DROP, ALTER, CREATE, REPLACE,\
+  \ TRUNCATE, PRAGMA, ATTACH, DETACH all blocked"
+- "RBAC enforced in backend via JWT role (EMPLOYEE/MANAGER/ADMIN) on every AI endpoint\
+  \ \u2014 never frontend-only"
+- "Policy RAG returns grounded answers from retrieved policy docs only \u2014 never\
+  \ from model memory, never obeys instructions found in retrieved content"
+- "Every AI interaction audited in ai_audit_logs \u2014 secrets, JWTs, passwords,\
+  \ bank/PAN details must never be logged"
+critical_paths:
+- "POST /api/v1/chat/policy \u2014 Policy RAG: retrieve relevant policy chunks, generate\
+  \ grounded answer with source citations"
+- "POST /api/v1/chat/sql \u2014 NL-to-SQL: generate SELECT query, validate against\
+  \ guardrails, filter forbidden columns, apply role-based row restrictions"
+- "POST /api/v1/chat/actions \u2014 HR task automation: extract intent, call existing\
+  \ backend API as tool (not direct DB write), return action result"
+- "JWT authentication on every AI endpoint \u2014 decode token, identify user and\
+  \ role, apply AI feature permissions before any AI call"
+- "Plugin strategy pattern \u2014 LLM, embedder, and vector store providers swappable\
+  \ via config keys with zero code change"
+critical_boundaries:
+- "Anthropic Claude API (claude-sonnet-4-6) \u2014 external LLM; model configurable\
+  \ via AI_LLM_MODEL env var"
+- "ChromaDB/FAISS \u2014 local vector store; swappable via AI_VECTOR_STORE_PROVIDER\
+  \ config"
+- "SQLite (hr.db/cbnest.db) \u2014 primary data store; AI agents have read-only access\
+  \ via SQL agent guardrails"
+- "Next.js frontend \u2194 FastAPI backend \u2014 JWT-authenticated REST boundary;\
+  \ all AI endpoints require Bearer token"
+explicit_confirmations:
+- bootstrap confirmed by maintainer
+governance_posture: balanced
+review_default: owner-review
+verification_default: regression-driven
+ai_mutation_policy: guided-ai-edits
+workload_profile: batch-or-tooling
+traffic_expectations: light-traffic
+latency_sensitivity: low
+release_cadence: ad-hoc
+rollback_recovery_posture: easy
+updated_at: '2026-05-12T17:51:27Z'
+approved_by:
+- vijaydeep
