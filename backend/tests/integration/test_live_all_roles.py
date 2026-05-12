@@ -311,14 +311,6 @@ if cl_tok:
               got_data and not reasoning_leak,
               f"rows={len(rows)}, answer[:100]={ans[:100]!r}")
 
-# MANAGER — team salary (own + direct reports only, not all employees)
-# Asking for ALL employees' salaries is correctly denied; own-team query should return rows.
-TEAM_SALARY_Q = "What is my salary and the salary of my direct reports?"
-ans, rows = ask_sql(manager_tok, TEAM_SALARY_Q)
-check_ans("MANAGER: team salary query returns rows", ans,
-          len(rows) >= 1 or (ans != "__TIMEOUT__" and len(ans) > 10 and not _is_blocked(ans)),
-          f"rows={len(rows)}, answer[:80]={ans[:80]!r}")
-
 def _is_blocked(ans: str) -> bool:
     """Return True if any blocked/denied/restricted keyword appears."""
     lower = ans.lower()
@@ -330,6 +322,14 @@ def _is_blocked(ans: str) -> bool:
         "forbidden",                  # LLM explicitly saying column is forbidden
         "not accessible", "restricted",
     ])
+
+# MANAGER — team salary (own + direct reports only, not all employees)
+# Asking for ALL employees' salaries is correctly denied; own-team query should return rows.
+TEAM_SALARY_Q = "What is my salary and the salary of my direct reports?"
+ans, rows = ask_sql(manager_tok, TEAM_SALARY_Q)
+check_ans("MANAGER: team salary query returns rows", ans,
+          len(rows) >= 1 or (ans != "__TIMEOUT__" and len(ans) > 10 and not _is_blocked(ans)),
+          f"rows={len(rows)}, answer[:80]={ans[:80]!r}")
 
 # Forbidden: hashed_password — real check is that rows contain no hashed_password values.
 # LLM answer text can be garbled (partial reasoning) with local models but security holds
