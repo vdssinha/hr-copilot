@@ -49,7 +49,7 @@ def ingest_hr_data(cc_admin_token):
             timeout=90,
         )
         if probe.status_code == 200:
-            answer = probe.json().get("data", {}).get("answer", "").lower()
+            answer = (probe.json().get("data") or {}).get("answer", "").lower()
             if (
                 "not ingested" not in answer
                 and "no matching" not in answer
