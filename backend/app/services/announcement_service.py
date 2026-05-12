@@ -35,3 +35,25 @@ def create_announcement(
     db.commit()
     db.refresh(ann)
     return {"success": True, "data": {"id": ann.id, "title": title}}
+
+
+def list_announcements(db: Session, limit: int = 50) -> dict:
+    announcements = (
+        db.query(Announcement)
+        .order_by(Announcement.is_pinned.desc(), Announcement.created_at.desc())
+        .limit(limit)
+        .all()
+    )
+    data = [
+        {
+            "id": a.id,
+            "title": a.title,
+            "content": a.content,
+            "category": a.category.value,
+            "is_pinned": a.is_pinned,
+            "created_by_id": a.created_by_id,
+            "created_at": a.created_at.isoformat() if a.created_at else None,
+        }
+        for a in announcements
+    ]
+    return {"success": True, "data": data}

@@ -33,6 +33,16 @@ class CreateAnnouncementRequest(BaseModel):
 
 # ─── Endpoints ────────────────────────────────────────────────────────────────
 
+@router.get("", response_model=APIResponse)
+def list_announcements(
+    limit: int = 50,
+    current_user: Employee = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> APIResponse:
+    result = announcement_service.list_announcements(db=db, limit=limit)
+    return APIResponse.ok(result["data"])
+
+
 @router.post("", response_model=APIResponse, status_code=status.HTTP_201_CREATED)
 def create_announcement(
     body: CreateAnnouncementRequest,
