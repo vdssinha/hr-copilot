@@ -7,18 +7,38 @@ Three AI capabilities sit behind a unified router, all gated by JWT auth and RBA
 ```
 ┌──────────────────────────────────────────────────────────────────┐
 │                       NEXT.JS FRONTEND                           │
-│  /ai-copilot — mode selector: router | policy | sql | actions    │
-│  ChatPanel / SourceList / SQLResultTable / ActionResultCard       │
+│  /ai-copilot — mode selector:                                    │
+│    router | policy | sql | actions | hr-data (chat modes)        │
+│    my-leaves (all roles) | pending-approvals (manager+)          │
+│  Components: ChatPanel / SourceList / SQLResultTable /           │
+│    ActionResultCard / PendingApprovals / MyLeaves                │
 └──────────────────────────────────┬───────────────────────────────┘
                                    │ JWT Bearer
                                    ▼
 ┌──────────────────────────────────────────────────────────────────┐
 │                      FASTAPI BACKEND                             │
-│  POST /api/v1/chat/router    ← unified intent classifier         │
-│  POST /api/v1/chat/policy    ← Policy RAG                        │
-│  POST /api/v1/chat/sql       ← SQL Agent                         │
-│  POST /api/v1/chat/actions   ← HR Action Agent                   │
+│  AI Chat endpoints:                                              │
+│  POST /api/v1/chat/router         ← unified intent classifier    │
+│  POST /api/v1/chat/policy         ← Policy RAG                   │
+│  POST /api/v1/chat/sql            ← SQL Agent                    │
+│  POST /api/v1/chat/actions        ← HR Action Agent              │
+│  POST /api/v1/chat/router/stream  ← NDJSON streaming             │
+│  POST /api/v1/chat/hr-data        ← Semantic HR CSV search       │
 │  POST /api/v1/chat/policy/ingest  ← admin: re-index policies     │
+│                                                                  │
+│  HR REST API (called by agents + direct UI):                     │
+│  POST   /api/v1/leaves/requests        ← apply leave             │
+│  PATCH  /api/v1/leaves/requests/{id}   ← approve/reject          │
+│  GET    /api/v1/leaves/requests/my     ← own leave history       │
+│  GET    /api/v1/leaves/requests/pending ← pending approvals      │
+│  POST   /api/v1/tickets               ← create ticket            │
+│  PATCH  /api/v1/tickets/{id}          ← assign/update ticket     │
+│  GET    /api/v1/tickets/my            ← own tickets              │
+│  POST   /api/v1/announcements         ← create announcement      │
+│  POST   /api/v1/employees/{id}/projects ← assign to project      │
+│  GET    /api/v1/projects/my           ← own project assignments  │
+│  POST   /api/v1/projects             ← create project (ADMIN)    │
+│  GET    /api/v1/projects/employees   ← team project mapping      │
 └──────────────────────────────────┬───────────────────────────────┘
                                    │
                          ┌─────────┴──────────┐
@@ -132,19 +152,28 @@ LLM intent extraction → JSON { action, params, cannot_do_reason }
 Permission check (can_perform + cannot_do_reason)
      │
      ▼
-Dispatch to api_tools function (in-process, same DB session)
-  apply_leave / check_leave_balance / approve_leave / reject_leave /
-  create_ticket / assign_ticket / create_announcement /
-  assign_employee_to_project
+Permission check (can_perform + cannot_do_reason)
      │
      ▼
+Dispatch to api_tools → service layer (same process, equivalent to REST API call)
+  Mutations: apply_leave / approve_leave / reject_leave / create_ticket /
+             assign_ticket / create_announcement / assign_employee_to_project /
+             create_project
+  Queries:   check_leave_balance / get_my_leaves / list_pending_approvals /
+             check_ticket_status / view_own_projects / search_employees_by_skill /
+             check_project_assignments
+     │
+     ▼  (service layer = same logic as REST endpoints below)
 LLM result summary
      │
      ▼
 ActionResult { answer, action, success, data }
 ```
 
-All mutations go through service functions — never raw SQL writes from the agent.
+All mutations flow through `app/services/*_service.py` — the same service layer
+called by the HR REST endpoints. Never raw SQL writes from the agent.
+
+Architecture: **Agent → Service Layer → DB** (equivalent to Agent → REST API → Service Layer → DB)
 
 ### 4. Router Agent (`router_agent.py`)
 

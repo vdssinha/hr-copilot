@@ -45,9 +45,14 @@ and scrubbed from result rows as defence-in-depth:
 ```
 hashed_password       bank_account_number   bank_account_name
 bank_branch           bank_ifsc             pan_number
-pan_name              pan_dob               date_of_birth
-current_salary_usd    profile_photo_path    profile_photo_mime
+pan_name              pan_dob               profile_photo_path
+profile_photo_mime
 ```
+
+`current_salary_usd` and `date_of_birth` are RBAC-controlled (not universally blocked):
+- EMPLOYEE: own record only
+- MANAGER: own + direct reports
+- ADMIN/HR/C_LEVEL: all employees
 
 ### SQL operation restrictions (all roles)
 
@@ -66,18 +71,26 @@ current_salary_usd    profile_photo_path    profile_photo_mime
 
 ## HR Action Agent — Action Permissions
 
-Defined in `app/services/ai/permissions.py` (`_ROLE_PERMISSIONS`).
+Defined in `app/services/ai/permissions.py` (`_ROLE_PERMISSIONS`).  
+HR and C_LEVEL roles receive MANAGER-level permissions.
 
-| Action                       | EMPLOYEE | MANAGER | ADMIN |
-|------------------------------|----------|---------|-------|
-| `apply_leave`                | ✅       | ✅      | ✅    |
-| `check_leave_balance`        | ✅       | ✅      | ✅    |
-| `approve_leave`              | ❌       | ✅      | ✅    |
-| `reject_leave`               | ❌       | ✅      | ✅    |
-| `create_ticket`              | ✅       | ✅      | ✅    |
-| `assign_ticket`              | ❌       | ✅      | ✅    |
-| `create_announcement`        | ❌       | ✅      | ✅    |
-| `assign_employee_to_project` | ❌       | ✅      | ✅    |
+| Action                       | EMPLOYEE | MARKETING | MANAGER | HR/C_LEVEL | ADMIN |
+|------------------------------|----------|-----------|---------|------------|-------|
+| `apply_leave`                | ✅       | ✅        | ✅      | ✅         | ✅    |
+| `check_leave_balance`        | ✅       | ✅        | ✅      | ✅         | ✅    |
+| `get_my_leaves`              | ✅       | ✅        | ✅      | ✅         | ✅    |
+| `create_ticket`              | ✅       | ✅        | ✅      | ✅         | ✅    |
+| `check_ticket_status`        | ✅       | ✅        | ✅      | ✅         | ✅    |
+| `view_own_projects`          | ✅       | ✅        | ✅      | ✅         | ✅    |
+| `approve_leave`              | ❌       | ❌        | ✅      | ✅         | ✅    |
+| `reject_leave`               | ❌       | ❌        | ✅      | ✅         | ✅    |
+| `list_pending_approvals`     | ❌       | ❌        | ✅      | ✅         | ✅    |
+| `assign_ticket`              | ❌       | ❌        | ✅      | ✅         | ✅    |
+| `create_announcement`        | ❌       | ❌        | ✅      | ✅         | ✅    |
+| `assign_employee_to_project` | ❌       | ❌        | ✅      | ✅         | ✅    |
+| `search_employees_by_skill`  | ❌       | ❌        | ✅      | ✅         | ✅    |
+| `check_project_assignments`  | ❌       | ❌        | ✅      | ✅         | ✅    |
+| `create_project`             | ❌       | ❌        | ❌      | ❌         | ✅    |
 
 ### Enforcement layers (three independent checks)
 
