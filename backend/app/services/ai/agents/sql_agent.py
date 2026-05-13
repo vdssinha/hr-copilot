@@ -167,10 +167,16 @@ def _build_access_rules(user: Employee, db: Session) -> str:
             f"For project/department catalog queries, no filter needed."
         )
 
-    # EMPLOYEE and MARKETING — own data only
+    # EMPLOYEE and MARKETING — own data only, plus read-only public fields of direct manager
     return (
         f"{user.role.value.title()} role (employee_id={user.id}). "
-        f"For the employees table: filter by id = {user.id} (the primary key column is 'id', NOT 'employee_id'). "
+        f"For the employees table: "
+        f"  - Own record: filter by id = {user.id} (the primary key column is 'id', NOT 'employee_id'). "
+        f"  - Direct manager lookup ONLY: you may read public fields "
+        f"    (id, name, email, job_title, role, department_id, employment_type, status, manager_id, joining_date) "
+        f"    of the employee whose id matches your manager_id. "
+        f"    Allowed pattern: JOIN employees AS mgr ON e.manager_id = mgr.id WHERE e.id = {user.id}. "
+        f"  - Any other employee row is ACCESS_DENIED. "
         f"For other employee-specific tables (leave_requests, leave_balances, tickets, "
         f"employee_projects, employee_skills, job_history): "
         f"always filter by employee_id = {user.id} or created_by_id = {user.id}. "
