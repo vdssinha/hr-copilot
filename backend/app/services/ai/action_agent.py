@@ -5,7 +5,7 @@ then dispatches to the appropriate backend API tool.
 """
 import json
 import re
-from datetime import date as _date
+from datetime import date as _date, timedelta
 from typing import Optional, TypedDict
 
 from sqlalchemy.orm import Session
@@ -131,17 +131,26 @@ def _parse_llm_json(raw: str) -> dict:
     return json.loads(raw)
 
 
+def _resolve_date_refs(message: str, today: _date) -> str:
+    """Replace 'today'/'tomorrow' with ISO dates so the LLM never has to guess."""
+    tomorrow = today + timedelta(days=1)
+    msg = re.sub(r'\btoday\b', today.isoformat(), message, flags=re.IGNORECASE)
+    msg = re.sub(r'\btomorrow\b', tomorrow.isoformat(), msg, flags=re.IGNORECASE)
+    return msg
+
+
 def _build_extract_prompt(message: str, user: Employee, history: list = None) -> str:
-    today = _date.today().isoformat()
+    today = _date.today()
     actions = sorted(allowed_actions(user))
     history_block = build_history_block(history or [])
     preamble = f"{history_block}\n" if history_block else ""
+    resolved = _resolve_date_refs(message, today)
     return (
         f"{preamble}"
-        f"Today's date: {today}\n"
+        f"Today's date: {today.isoformat()}\n"
         f"User role: {user.role.value}\n"
         f"Allowed actions for this user: {actions}\n\n"
-        f"User message: {message}"
+        f"User message: {resolved}"
     )
 
 
