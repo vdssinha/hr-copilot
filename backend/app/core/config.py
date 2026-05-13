@@ -133,14 +133,12 @@ AI_MAX_TOKENS_SQL_AGENT_SUMMARY = int(os.getenv("AI_MAX_TOKENS_SQL_AGENT_SUMMARY
 # Used in: policy_rag.py — LLM call that answers HR policy questions from
 #   retrieved document chunks. Multi-paragraph answers with citations need room.
 #   Must equal HR_DATA_RAG_ANSWER and ≈ 2× SQL_AGENT_QUERY (see correlations).
-#   Raised to 3072: thinking models (e.g. Gemma 4-31b) spend 1200-2000 reasoning
-#   tokens before emitting prose output — 1024 leaves nothing for the actual answer.
-AI_MAX_TOKENS_POLICY_RAG_ANSWER = int(os.getenv("AI_MAX_TOKENS_POLICY_RAG_ANSWER", "3072"))
+AI_MAX_TOKENS_POLICY_RAG_ANSWER = int(os.getenv("AI_MAX_TOKENS_POLICY_RAG_ANSWER", "1024"))
 
 # Used in: hr_data_rag.py — LLM call that answers questions over HR employee
 #   data. Same answer format as POLICY_RAG_ANSWER; keep in sync.
 #   Must equal POLICY_RAG_ANSWER (see correlation above).
-AI_MAX_TOKENS_HR_DATA_RAG_ANSWER = int(os.getenv("AI_MAX_TOKENS_HR_DATA_RAG_ANSWER", "3072"))
+AI_MAX_TOKENS_HR_DATA_RAG_ANSWER = int(os.getenv("AI_MAX_TOKENS_HR_DATA_RAG_ANSWER", "1024"))
 
 # Used in: action_agent.py — LLM call that extracts structured tool-call JSON
 #   from the user message (intent + parameters). Nested JSON can be verbose.
