@@ -11,8 +11,10 @@ from sqlalchemy.orm import Session
 from app.core.dependencies import get_current_user, require_role
 from app.db.session import get_db
 from app.models.employee import Employee, EmployeeRole
+from app.models.ai_audit_log import AIIntent, ActionStatus
 from app.schemas.common import APIResponse
 from app.services import project_service
+from app.services.ai.audit import log_ai_interaction
 
 router = APIRouter()
 
@@ -59,7 +61,14 @@ def assign_employee_to_project(
         role=body.role,
     )
     if not result["success"]:
+        log_ai_interaction(db, current_user,
+                           f"Assign employee #{employee_id} to project #{body.project_id}",
+                           AIIntent.HR_ACTION, ActionStatus.ERROR, tool_name="assign_employee_to_project")
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=result["error"])
+    log_ai_interaction(db, current_user,
+                       f"Assign employee #{employee_id} to project #{body.project_id} as {body.role}",
+                       AIIntent.HR_ACTION, ActionStatus.SUCCESS, tool_name="assign_employee_to_project",
+                       records_accessed=[str(employee_id), str(body.project_id)])
     return APIResponse.ok(result["data"])
 
 
@@ -97,7 +106,12 @@ def create_project(
         status=body.status,
     )
     if not result["success"]:
+        log_ai_interaction(db, current_user, f"Create project: {body.name}",
+                           AIIntent.HR_ACTION, ActionStatus.ERROR, tool_name="create_project")
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=result["error"])
+    log_ai_interaction(db, current_user, f"Create project: {body.name}",
+                       AIIntent.HR_ACTION, ActionStatus.SUCCESS, tool_name="create_project",
+                       records_accessed=[str(result["data"].get("id"))])
     return APIResponse.ok(result["data"])
 
 

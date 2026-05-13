@@ -11,8 +11,10 @@ from sqlalchemy.orm import Session
 from app.core.dependencies import get_current_user, require_role
 from app.db.session import get_db
 from app.models.employee import Employee, EmployeeRole
+from app.models.ai_audit_log import AIIntent, ActionStatus
 from app.schemas.common import APIResponse
 from app.services import ticket_service
+from app.services.ai.audit import log_ai_interaction
 
 router = APIRouter()
 
@@ -65,7 +67,12 @@ def create_ticket(
         priority=body.priority,
     )
     if not result["success"]:
+        log_ai_interaction(db, current_user, f"Create ticket: {body.title}",
+                           AIIntent.HR_ACTION, ActionStatus.ERROR, tool_name="create_ticket")
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=result["error"])
+    log_ai_interaction(db, current_user, f"Create ticket: {body.title}",
+                       AIIntent.HR_ACTION, ActionStatus.SUCCESS, tool_name="create_ticket",
+                       records_accessed=[str(result["data"].get("id"))])
     return APIResponse.ok(result["data"])
 
 
@@ -84,7 +91,12 @@ def update_ticket(
         status=body.status,
     )
     if not result["success"]:
+        log_ai_interaction(db, current_user, f"Assign ticket #{ticket_id}",
+                           AIIntent.HR_ACTION, ActionStatus.ERROR, tool_name="assign_ticket")
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=result["error"])
+    log_ai_interaction(db, current_user, f"Assign ticket #{ticket_id} → employee #{body.assignee_id}",
+                       AIIntent.HR_ACTION, ActionStatus.SUCCESS, tool_name="assign_ticket",
+                       records_accessed=[str(ticket_id)])
     return APIResponse.ok(result["data"])
 
 

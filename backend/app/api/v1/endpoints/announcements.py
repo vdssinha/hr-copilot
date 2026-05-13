@@ -9,8 +9,10 @@ from sqlalchemy.orm import Session
 from app.core.dependencies import get_current_user, require_role
 from app.db.session import get_db
 from app.models.employee import Employee, EmployeeRole
+from app.models.ai_audit_log import AIIntent, ActionStatus
 from app.schemas.common import APIResponse
 from app.services import announcement_service
+from app.services.ai.audit import log_ai_interaction
 
 router = APIRouter()
 
@@ -58,5 +60,10 @@ def create_announcement(
         is_pinned=body.is_pinned,
     )
     if not result["success"]:
+        log_ai_interaction(db, current_user, f"Create announcement: {body.title}",
+                           AIIntent.HR_ACTION, ActionStatus.ERROR, tool_name="create_announcement")
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=result["error"])
+    log_ai_interaction(db, current_user, f"Create announcement: {body.title}",
+                       AIIntent.HR_ACTION, ActionStatus.SUCCESS, tool_name="create_announcement",
+                       records_accessed=[str(result["data"].get("id"))])
     return APIResponse.ok(result["data"])
