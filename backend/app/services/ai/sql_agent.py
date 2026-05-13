@@ -170,10 +170,11 @@ def _build_access_rules(user: Employee, db: Session) -> str:
     # EMPLOYEE and MARKETING — own data only
     return (
         f"{user.role.value.title()} role (employee_id={user.id}). "
-        f"For employee-specific data (leave_requests, leave_balances, tickets, "
-        f"employee_projects, employee_skills, employees, job_history): "
+        f"For the employees table: filter by id = {user.id} (the primary key column is 'id', NOT 'employee_id'). "
+        f"For other employee-specific tables (leave_requests, leave_balances, tickets, "
+        f"employee_projects, employee_skills, job_history): "
         f"always filter by employee_id = {user.id} or created_by_id = {user.id}. "
-        f"current_salary_usd and date_of_birth may only be queried for employee_id = {user.id} (own record). "
+        f"current_salary_usd and date_of_birth may only be queried where employees.id = {user.id} (own record only). "
         f"For catalog queries (projects, departments, skills — read-only lists), no filter needed."
     )
 

@@ -5,9 +5,14 @@ Uses StaticPool so all connections share the same in-memory database.
 import pytest
 from unittest.mock import MagicMock, patch
 
+import os
+
 # Live tests hit a running server (requests, no TestClient). Run only when server is up.
 # Exclude from normal pytest; run via: python tests/integration/run_all.py
-collect_ignore = [
+# Set RUN_INTEGRATION=1 to include them (run_all.py does this automatically).
+_INTEGRATION = os.getenv("RUN_INTEGRATION", "0") == "1"
+
+collect_ignore = [] if _INTEGRATION else [
     "integration/test_live_all_roles.py",
     "integration/auth/test_login.py",
     "integration/actions/test_action_rbac.py",

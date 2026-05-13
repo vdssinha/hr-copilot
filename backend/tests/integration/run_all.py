@@ -61,7 +61,9 @@ def main() -> int:
     extra_flags = sys.argv[1:]
     cmd = [sys.executable, "-m", "pytest"] + SUITES + DEFAULT_FLAGS + extra_flags
     print(f"Command: {' '.join(cmd)}\n")
-    result = subprocess.run(cmd)
+    env = os.environ.copy()
+    env["RUN_INTEGRATION"] = "1"
+    result = subprocess.run(cmd, env=env)
     return result.returncode
 
 

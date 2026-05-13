@@ -92,6 +92,24 @@ SQL_QUERY_ROUTE = Route(
         "Show me my pay.",
         "How much do I get paid?",
         "What is my CTC?",
+        # manager salary / other person's salary → SQL agent → ACCESS_DENIED for non-privileged roles
+        "Show me my manager's salary.",
+        "What is my manager's salary?",
+        "How much does my manager earn?",
+        "What is my boss's salary?",
+        "Show me another employee's salary.",
+        "What is Rahul's salary?",
+        "How much does Dev Patel earn?",
+        # manager / org chart lookups → SQL agent
+        "Who is my manager?",
+        "Who is my reporting manager?",
+        "Who do I report to?",
+        "What is my manager's name?",
+        "Who manages me?",
+        "Tell me who my manager is.",
+        "Show me my manager's details.",
+        "Who is my direct manager?",
+        "What is the name of my manager?",
     ],
 )
 
