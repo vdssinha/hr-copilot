@@ -6,9 +6,9 @@ from fastapi import APIRouter, Depends
 from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 
-from app.core.dependencies import get_current_user
+from app.core.dependencies import get_current_user, require_role
 from app.db.session import get_db
-from app.models.employee import Employee
+from app.models.employee import Employee, EmployeeRole
 from app.models.ai_audit_log import AIIntent, ActionStatus
 from app.schemas.chat import ChatRequest
 from app.schemas.common import APIResponse
@@ -22,6 +22,19 @@ from app.services.ai.sql_agent import run_sql_query
 
 router = APIRouter()
 
+_INTENT_MAP = {
+    "POLICY_QA": AIIntent.POLICY_QA,
+    "SQL_QUERY": AIIntent.SQL_QUERY,
+    "HR_ACTION": AIIntent.HR_ACTION,
+}
+
+
+def _log_blocked(db: Session, user: Employee, message: str, blocked, t0: float) -> None:
+    log_ai_interaction(
+        db, user, message, AIIntent.UNKNOWN, ActionStatus.REFUSED,
+        tool_name=blocked.route, latency_ms=(time.perf_counter() - t0) * 1000,
+    )
+
 
 @router.post("/policy", response_model=APIResponse)
 def chat_policy(
@@ -33,7 +46,7 @@ def chat_policy(
     try:
         message, blocked = get_pipeline().preprocess(payload.message, current_user)
         if blocked:
-            log_ai_interaction(db, current_user, payload.message, AIIntent.UNKNOWN, ActionStatus.REFUSED, tool_name=blocked.route, latency_ms=(time.perf_counter()-t0)*1000)
+            _log_blocked(db, current_user, payload.message, blocked, t0)
             return APIResponse.ok({"answer": blocked.response, "sources": []})
         result = answer_policy_question(db, message, user_role=current_user.role, policy_group=current_user.policy_group, history=[h.dict() for h in payload.history], session_id=payload.session_id, user_id=current_user.id)
         log_ai_interaction(
@@ -60,7 +73,7 @@ def chat_sql(
     try:
         message, blocked = get_pipeline().preprocess(payload.message, current_user)
         if blocked:
-            log_ai_interaction(db, current_user, payload.message, AIIntent.UNKNOWN, ActionStatus.REFUSED, tool_name=blocked.route, latency_ms=(time.perf_counter()-t0)*1000)
+            _log_blocked(db, current_user, payload.message, blocked, t0)
             return APIResponse.ok({"answer": blocked.response, "sql": "", "rows": [], "row_count": 0})
         result = run_sql_query(db, current_user, message, history=[h.dict() for h in payload.history], session_id=payload.session_id)
         status = ActionStatus.SUCCESS if result["rows"] else ActionStatus.REFUSED
@@ -88,7 +101,7 @@ def chat_actions(
     try:
         message, blocked = get_pipeline().preprocess(payload.message, current_user)
         if blocked:
-            log_ai_interaction(db, current_user, payload.message, AIIntent.UNKNOWN, ActionStatus.REFUSED, tool_name=blocked.route, latency_ms=(time.perf_counter()-t0)*1000)
+            _log_blocked(db, current_user, payload.message, blocked, t0)
             return APIResponse.ok({"answer": blocked.response, "success": False, "action": blocked.route, "data": None})
         result = run_action(db, current_user, message, history=[h.dict() for h in payload.history], session_id=payload.session_id, confirmed=payload.confirmed)
         log_ai_interaction(
@@ -115,15 +128,10 @@ def chat_router(
     try:
         result = get_pipeline().run(db, current_user, payload.message, history=[h.dict() for h in payload.history], session_id=payload.session_id)
         route_intent = result["route"]["intent"]
-        intent_map = {
-            "POLICY_QA": AIIntent.POLICY_QA,
-            "SQL_QUERY": AIIntent.SQL_QUERY,
-            "HR_ACTION": AIIntent.HR_ACTION,
-        }
         action_status = ActionStatus.REFUSED if route_intent == "BLOCKED" else ActionStatus.SUCCESS
         log_ai_interaction(
             db, current_user, payload.message,
-            intent=intent_map.get(route_intent, AIIntent.UNKNOWN),
+            intent=_INTENT_MAP.get(route_intent, AIIntent.UNKNOWN),
             action_status=action_status,
             tool_name=result.get("guardrail") or "router",
             latency_ms=(time.perf_counter()-t0)*1000,
@@ -145,7 +153,7 @@ def chat_hr_data(
     try:
         message, blocked = get_pipeline().preprocess(payload.message, current_user)
         if blocked:
-            log_ai_interaction(db, current_user, payload.message, AIIntent.UNKNOWN, ActionStatus.REFUSED, tool_name=blocked.route, latency_ms=(time.perf_counter()-t0)*1000)
+            _log_blocked(db, current_user, payload.message, blocked, t0)
             return APIResponse.ok({"answer": blocked.response, "rows_found": 0, "rows": []})
         result = query_hr_data(
             message,
@@ -172,13 +180,10 @@ def chat_hr_data(
 
 @router.post("/policy/ingest", response_model=APIResponse)
 def ingest_policy_docs(
-    current_user: Employee = Depends(get_current_user),
+    current_user: Employee = Depends(require_role(EmployeeRole.ADMIN)),
     db: Session = Depends(get_db),
 ):
     """Admin-only: re-embed all active HR policies into the vector store."""
-    from app.models.employee import EmployeeRole
-    if current_user.role != EmployeeRole.ADMIN:
-        return APIResponse.fail("Only admins can trigger policy ingestion.")
     count = ingest_policies(db)
     return APIResponse.ok({"chunks_ingested": count})
 
@@ -192,28 +197,26 @@ def chat_langgraph(
     db: Session = Depends(get_db),
 ):
     """LangGraph multi-agent orchestration — passes through guardrail pipeline then routes via graph."""
+    t0 = time.perf_counter()
     try:
         message, blocked = get_pipeline().preprocess(payload.message, current_user)
         if blocked:
-            log_ai_interaction(db, current_user, payload.message, AIIntent.UNKNOWN, ActionStatus.REFUSED, tool_name=blocked.route)
+            _log_blocked(db, current_user, payload.message, blocked, t0)
             return APIResponse.ok({"route": {"intent": "BLOCKED"}, "result": {"answer": blocked.response}, "guardrail": blocked.route})
         from app.services.ai.langgraph_agent import run_langgraph
         result = run_langgraph(db, current_user, message, history=[h.dict() for h in payload.history], session_id=payload.session_id)
         route_intent = result["route"]["intent"]
-        intent_map = {
-            "POLICY_QA": AIIntent.POLICY_QA,
-            "SQL_QUERY": AIIntent.SQL_QUERY,
-            "HR_ACTION": AIIntent.HR_ACTION,
-        }
         log_ai_interaction(
             db, current_user, payload.message,
-            intent=intent_map.get(route_intent, AIIntent.UNKNOWN),
+            intent=_INTENT_MAP.get(route_intent, AIIntent.UNKNOWN),
             action_status=ActionStatus.SUCCESS,
             tool_name="langgraph",
+            latency_ms=(time.perf_counter() - t0) * 1000,
         )
         return APIResponse.ok(result)
     except Exception as e:
-        log_ai_interaction(db, current_user, payload.message, AIIntent.ROUTER, ActionStatus.ERROR)
+        log_ai_interaction(db, current_user, payload.message, AIIntent.ROUTER, ActionStatus.ERROR,
+                           latency_ms=(time.perf_counter() - t0) * 1000)
         return APIResponse.fail(str(e))
 
 
