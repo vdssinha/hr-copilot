@@ -17,7 +17,14 @@ export function ActionResultCard({ action, success, data }: ActionResultCardProp
       {data && (
         <ul className="mt-1 space-y-0.5 text-gray-600">
           {Object.entries(data).map(([k, v]) => (
-            <li key={k}><span className="font-medium">{k}:</span> {String(v)}</li>
+            <li key={k}>
+              <span className="font-medium">{k}:</span>{" "}
+              {v !== null && typeof v === "object" && !Array.isArray(v)
+                ? Object.entries(v as Record<string, unknown>)
+                    .map(([sk, sv]) => `${sk}: ${sv}`)
+                    .join(" · ")
+                : String(v ?? "")}
+            </li>
           ))}
         </ul>
       )}

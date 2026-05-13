@@ -1020,6 +1020,161 @@ else:
 
 
 # ─────────────────────────────────────────────────────────────────────────────
+# 15. CHAT HISTORY PERSISTENCE — multi-turn context across tab switches
+# ─────────────────────────────────────────────────────────────────────────────
+section("15. CHAT HISTORY PERSISTENCE — multi-turn context passed correctly")
+
+if employee_tok and manager_tok and admin_tok:
+
+    # ── 15a. History field accepted by all chat endpoints (schema check) ──────
+    for endpoint, token, label_suffix in [
+        ("/chat/policy",  employee_tok, "policy"),
+        ("/chat/sql",     admin_tok,    "sql"),
+        ("/chat/actions", employee_tok, "actions"),
+    ]:
+        prior = [
+            {"role": "user",      "content": "What is the leave policy?"},
+            {"role": "assistant", "content": "You have 12 sick days per year."},
+        ]
+        try:
+            r = requests.post(
+                f"{BASE}{endpoint}",
+                json={"message": "Tell me more about that.", "history": prior},
+                headers={"Authorization": f"Bearer {token}"},
+                timeout=30,
+            )
+            check(
+                f"History accepted by {label_suffix} endpoint → 200",
+                r.status_code == 200,
+                f"status={r.status_code}",
+            )
+        except requests.exceptions.Timeout:
+            skip(f"History accepted by {label_suffix} endpoint", "LLM timeout")
+
+    # ── 15b. Empty history list is backward-compatible ────────────────────────
+    try:
+        r = requests.post(
+            f"{BASE}/chat/policy",
+            json={"message": "What is the WFH policy?", "history": []},
+            headers={"Authorization": f"Bearer {employee_tok}"},
+            timeout=30,
+        )
+        check("Empty history list accepted → 200", r.status_code == 200, f"status={r.status_code}")
+    except requests.exceptions.Timeout:
+        skip("Empty history list accepted", "LLM timeout")
+
+    # ── 15c. Multi-turn SQL conversation — second turn carries first-turn context
+    # We send two requests: first establishes context, second sends history from first.
+    # We verify the backend accepts both without error (LLM context use is LLM behaviour).
+    first_answer = None
+    try:
+        r1 = requests.post(
+            f"{BASE}/chat/sql",
+            json={"message": "Which projects are ongoing?", "history": []},
+            headers={"Authorization": f"Bearer {admin_tok}"},
+            timeout=30,
+        )
+        if r1.status_code == 200 and unwrap(r1) is not None:
+            first_answer = unwrap(r1).get("answer", "")
+            check(
+                "Multi-turn SQL: first turn → 200 with answer",
+                bool(first_answer),
+                f"answer_preview={str(first_answer)[:60]}",
+            )
+    except requests.exceptions.Timeout:
+        skip("Multi-turn SQL: first turn", "LLM timeout")
+
+    if first_answer is not None:
+        try:
+            history_payload = [
+                {"role": "user",      "content": "Which projects are ongoing?"},
+                {"role": "assistant", "content": first_answer},
+            ]
+            r2 = requests.post(
+                f"{BASE}/chat/sql",
+                json={
+                    "message": "How many employees are assigned to those projects?",
+                    "history": history_payload,
+                },
+                headers={"Authorization": f"Bearer {admin_tok}"},
+                timeout=30,
+            )
+            d2 = unwrap(r2)
+            check(
+                "Multi-turn SQL: second turn with history → 200",
+                r2.status_code == 200 and d2 is not None,
+                f"status={r2.status_code}",
+            )
+        except requests.exceptions.Timeout:
+            skip("Multi-turn SQL: second turn with history", "LLM timeout")
+
+    # ── 15d. Multi-turn policy conversation ───────────────────────────────────
+    first_policy_answer = None
+    try:
+        r1 = requests.post(
+            f"{BASE}/chat/policy",
+            json={"message": "What is the sick leave policy?", "history": []},
+            headers={"Authorization": f"Bearer {employee_tok}"},
+            timeout=30,
+        )
+        if r1.status_code == 200:
+            d1 = unwrap(r1)
+            first_policy_answer = d1.get("answer", "") if isinstance(d1, dict) else ""
+            check(
+                "Multi-turn policy: first turn → 200",
+                bool(first_policy_answer),
+                f"answer_preview={str(first_policy_answer)[:60]}",
+            )
+    except requests.exceptions.Timeout:
+        skip("Multi-turn policy: first turn", "LLM timeout")
+
+    if first_policy_answer:
+        try:
+            r2 = requests.post(
+                f"{BASE}/chat/policy",
+                json={
+                    "message": "Does that also apply to probationary employees?",
+                    "history": [
+                        {"role": "user",      "content": "What is the sick leave policy?"},
+                        {"role": "assistant", "content": first_policy_answer},
+                    ],
+                },
+                headers={"Authorization": f"Bearer {employee_tok}"},
+                timeout=30,
+            )
+            check(
+                "Multi-turn policy: second turn with history → 200",
+                r2.status_code == 200,
+                f"status={r2.status_code}",
+            )
+        except requests.exceptions.Timeout:
+            skip("Multi-turn policy: second turn with history", "LLM timeout")
+
+    # ── 15e. Large history (10 turns) doesn't crash → trimmed gracefully ─────
+    large_history = [
+        {"role": "user" if i % 2 == 0 else "assistant", "content": f"turn {i}"}
+        for i in range(20)
+    ]
+    try:
+        r = requests.post(
+            f"{BASE}/chat/policy",
+            json={"message": "Final question after many turns.", "history": large_history},
+            headers={"Authorization": f"Bearer {employee_tok}"},
+            timeout=30,
+        )
+        check(
+            "Large history (20 msgs) trimmed gracefully → 200",
+            r.status_code == 200,
+            f"status={r.status_code}",
+        )
+    except requests.exceptions.Timeout:
+        skip("Large history (20 msgs) trimmed gracefully", "LLM timeout")
+
+else:
+    skip("Chat history persistence tests", "missing tokens")
+
+
+# ─────────────────────────────────────────────────────────────────────────────
 # SUMMARY
 # ─────────────────────────────────────────────────────────────────────────────
 section("SUMMARY")
