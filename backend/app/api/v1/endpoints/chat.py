@@ -12,13 +12,13 @@ from app.models.employee import Employee, EmployeeRole
 from app.models.ai_audit_log import AIIntent, ActionStatus
 from app.schemas.chat import ChatRequest
 from app.schemas.common import APIResponse
-from app.services.ai.action_agent import run_action
-from app.services.ai.audit import log_ai_interaction
-from app.services.ai.hr_data_rag import query_hr_data
-from app.services.ai.policy_rag import answer_policy_question, ingest_policies
-from app.services.ai.pipeline import get_pipeline
-from app.services.ai.router_agent import route_and_answer, classify_intent
-from app.services.ai.sql_agent import run_sql_query
+from app.services.ai.agents.action_agent import run_action
+from app.services.ai.core.audit import log_ai_interaction
+from app.services.ai.agents.hr_data_rag import query_hr_data
+from app.services.ai.agents.policy_rag import answer_policy_question, ingest_policies
+from app.services.ai.routing.guardrails.pipeline import get_pipeline
+from app.services.ai.routing.router_agent import route_and_answer, classify_intent
+from app.services.ai.agents.sql_agent import run_sql_query
 
 router = APIRouter()
 
@@ -203,7 +203,7 @@ def chat_langgraph(
         if blocked:
             _log_blocked(db, current_user, payload.message, blocked, t0)
             return APIResponse.ok({"route": {"intent": "BLOCKED"}, "result": {"answer": blocked.response}, "guardrail": blocked.route})
-        from app.services.ai.langgraph_agent import run_langgraph
+        from app.services.ai.agents.langgraph_agent import run_langgraph
         result = run_langgraph(db, current_user, message, history=[h.dict() for h in payload.history], session_id=payload.session_id)
         route_intent = result["route"]["intent"]
         log_ai_interaction(
@@ -253,7 +253,7 @@ def _stream_router(
     try:
         if intent == "POLICY_QA":
             yield _ndjson("status", {"message": "Searching HR policies…"})
-            from app.services.ai.policy_rag import answer_policy_question
+            from app.services.ai.agents.policy_rag import answer_policy_question
             result = answer_policy_question(db, processed, user_role=user.role, policy_group=user.policy_group, history=history, session_id=session_id, user_id=user.id)
             log_ai_interaction(db, user, message, AIIntent.POLICY_QA,
                                ActionStatus.SUCCESS if result["sources"] else ActionStatus.REFUSED,

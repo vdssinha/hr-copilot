@@ -38,10 +38,10 @@ from app.schemas.admin import (
     AdminUserUpdate,
 )
 from app.schemas.common import APIResponse
-from app.services.ai.document_loader import extract_text_bytes
+from app.services.ai.core.tools.document_loader import extract_text_bytes
 from sqlalchemy import func, case, or_
-from app.services.ai.hr_data_rag import ingest_hr_data
-from app.services.ai.policy_rag import ingest_policies
+from app.services.ai.agents.hr_data_rag import ingest_hr_data
+from app.services.ai.agents.policy_rag import ingest_policies
 
 router = APIRouter()
 

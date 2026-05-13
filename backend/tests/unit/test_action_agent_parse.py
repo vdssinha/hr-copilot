@@ -4,7 +4,7 @@ Tests the markdown-fence stripping, surrounding-text extraction, and error paths
 """
 import json
 import pytest
-from app.services.ai.action_agent import _parse_llm_json
+from app.services.ai.agents.action_agent import _parse_llm_json
 
 
 def test_clean_json():

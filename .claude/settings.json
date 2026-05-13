@@ -10,7 +10,6 @@
       "Bash(touch *)",
       "Bash(npm run typecheck*)",
       "Bash(npm run lint*)",
-      "Bash(kill $(lsof -ti:*)",
       "Bash(lsof -ti:*)",
       "Bash(venv/bin/python *)",
       "Bash(.venv/bin/python *)"

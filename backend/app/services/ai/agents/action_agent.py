@@ -11,10 +11,10 @@ from typing import Optional, TypedDict
 from sqlalchemy.orm import Session
 
 from app.core.config import AI_MAX_TOKENS_ACTION_AGENT_EXTRACT, AI_MAX_TOKENS_ACTION_AGENT_SUMMARY
-from app.services.ai.context import build_history_block
+from app.services.ai.core.memory.context import build_history_block
 from app.models.employee import Employee
-from app.services.ai.memory import build_memory_section, maybe_summarize, store_agent_turn
-from app.services.ai.api_tools import (
+from app.services.ai.core.memory.memory import build_memory_section, maybe_summarize, store_agent_turn
+from app.services.ai.core.tools.api_tools import (
     apply_leave, check_leave_balance,
     approve_leave, reject_leave,
     list_pending_approvals, get_my_leaves,
@@ -24,7 +24,7 @@ from app.services.ai.api_tools import (
     check_project_assignments, create_project,
 )
 from app.services.ai import factory as _factory
-from app.services.ai.permissions import can_perform, allowed_actions
+from app.services.ai.core.security.permissions import can_perform, allowed_actions
 
 _EXTRACT_SYSTEM = """You are an HR task intent extractor.
 

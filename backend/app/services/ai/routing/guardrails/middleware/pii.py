@@ -14,7 +14,7 @@ Replacements:
   [CARD]    — credit/debit card numbers (16 digits, optionally spaced/dashed)
 """
 import re
-from app.services.ai.middleware.base import InputTransformer
+from app.services.ai.routing.guardrails.middleware.base import InputTransformer
 
 # Order matters: more-specific patterns before generic ones.
 _PATTERNS: list[tuple[str, re.Pattern]] = [

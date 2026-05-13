@@ -64,7 +64,7 @@ class TestIntentRouteUtterances:
     """Verify SQL_QUERY_ROUTE contains expected utterance categories."""
 
     def test_manager_lookup_in_sql_query_route(self):
-        from app.services.ai.intent_routes import SQL_QUERY_ROUTE
+        from app.services.ai.routing.intent_routes import SQL_QUERY_ROUTE
         manager_terms = ["manager", "report to", "who manages"]
         combined = " ".join(SQL_QUERY_ROUTE.utterances).lower()
         assert any(t in combined for t in manager_terms), (
@@ -73,13 +73,13 @@ class TestIntentRouteUtterances:
         )
 
     def test_own_salary_in_sql_query_route(self):
-        from app.services.ai.intent_routes import SQL_QUERY_ROUTE
+        from app.services.ai.routing.intent_routes import SQL_QUERY_ROUTE
         salary_terms = ["salary", "earn", "pay", "ctc", "compensation"]
         combined = " ".join(SQL_QUERY_ROUTE.utterances).lower()
         assert any(t in combined for t in salary_terms)
 
     def test_manager_salary_in_sql_query_route(self):
-        from app.services.ai.intent_routes import SQL_QUERY_ROUTE
+        from app.services.ai.routing.intent_routes import SQL_QUERY_ROUTE
         combined = " ".join(SQL_QUERY_ROUTE.utterances).lower()
         assert "manager" in combined and "salary" in combined
 
@@ -88,7 +88,7 @@ class TestGuardrailRouteUtterances:
     """Verify JAILBREAK_ROUTE contains system-prompt and salary-modification utterances."""
 
     def test_system_prompt_reveal_in_jailbreak_route(self):
-        from app.services.ai.guardrail_routes import JAILBREAK_ROUTE
+        from app.services.ai.routing.guardrails.routes import JAILBREAK_ROUTE
         system_prompt_terms = ["system prompt", "instructions", "your prompt"]
         combined = " ".join(JAILBREAK_ROUTE.utterances).lower()
         assert any(t in combined for t in system_prompt_terms), (
@@ -96,7 +96,7 @@ class TestGuardrailRouteUtterances:
         )
 
     def test_salary_modification_in_jailbreak_route(self):
-        from app.services.ai.guardrail_routes import JAILBREAK_ROUTE
+        from app.services.ai.routing.guardrails.routes import JAILBREAK_ROUTE
         salary_mod_terms = ["update", "salary", "change", "compensation", "payroll"]
         combined = " ".join(JAILBREAK_ROUTE.utterances).lower()
         matches = [t for t in salary_mod_terms if t in combined]
@@ -105,7 +105,7 @@ class TestGuardrailRouteUtterances:
         )
 
     def test_destructive_leave_in_jailbreak_route(self):
-        from app.services.ai.guardrail_routes import JAILBREAK_ROUTE
+        from app.services.ai.routing.guardrails.routes import JAILBREAK_ROUTE
         combined = " ".join(JAILBREAK_ROUTE.utterances).lower()
         assert "delete" in combined or "remove" in combined or "wipe" in combined
 
@@ -116,7 +116,7 @@ class TestSQLAccessRules:
     """EMPLOYEE access rules must not instruct LLM to use 'employee_id' on employees table."""
 
     def test_employee_access_rule_uses_id_for_employees_table(self, employee_user):
-        from app.services.ai.sql_agent import _build_access_rules
+        from app.services.ai.agents.sql_agent import _build_access_rules
 
         rule = _build_access_rules(employee_user, db=None)
         # Must explicitly say id = X for employees table
@@ -127,7 +127,7 @@ class TestSQLAccessRules:
         )
 
     def test_employee_salary_rule_mentions_own_record(self, employee_user):
-        from app.services.ai.sql_agent import _build_access_rules
+        from app.services.ai.agents.sql_agent import _build_access_rules
 
         rule = _build_access_rules(employee_user, db=None)
         assert "current_salary_usd" in rule
@@ -140,8 +140,8 @@ class TestGuardrailPipelineBlocking:
     """Pipeline must block jailbreak routes including system-prompt reveals."""
 
     def _pipeline_with_route(self, route_name: str, score: float):
-        from app.services.ai.middleware.guardrail import SemanticGuardrail
-        from app.services.ai.pipeline import GuardrailPipeline
+        from app.services.ai.routing.guardrails.middleware.guardrail import SemanticGuardrail
+        from app.services.ai.routing.guardrails.pipeline import GuardrailPipeline
 
         mock_router = MagicMock()
         mock_router.return_value = (route_name, score)
@@ -180,12 +180,12 @@ class TestSQLAgentSalaryAccess:
     """SQL agent must deny employee access to another employee's salary."""
 
     def _run_with_mock_llm(self, db, user, question: str, llm_response: str):
-        from app.services.ai.sql_agent import run_sql_query
+        from app.services.ai.agents.sql_agent import run_sql_query
 
         mock_llm = MagicMock()
         mock_llm.generate.return_value = llm_response
 
-        with patch("app.services.ai.sql_agent._factory.get_llm_provider", return_value=mock_llm):
+        with patch("app.services.ai.agents.sql_agent._factory.get_llm_provider", return_value=mock_llm):
             return run_sql_query(db, user, question)
 
     def test_access_denied_when_llm_returns_access_denied_sentinel(self, db, employee_user):

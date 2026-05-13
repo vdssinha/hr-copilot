@@ -10,7 +10,7 @@ from app.db.base import Base
 from app.models.employee import EmployeeRole
 from app.models.hr_policy import PolicyCategory
 from app.models.role_category_access import RoleCategoryAccess
-from app.services.ai.policy_rag import _get_accessible_categories, answer_policy_question
+from app.services.ai.agents.policy_rag import _get_accessible_categories, answer_policy_question
 
 
 @pytest.fixture(scope="module")
@@ -72,9 +72,9 @@ class TestAnswerPolicyQuestionRBAC:
         mock_store.count.return_value = 0
         mock_embedder = MagicMock()
 
-        with patch("app.services.ai.policy_rag._factory.get_vector_store", return_value=mock_store), \
-             patch("app.services.ai.policy_rag._factory.get_embedder", return_value=mock_embedder), \
-             patch("app.services.ai.policy_rag._needs_ingestion", return_value=False):
+        with patch("app.services.ai.agents.policy_rag._factory.get_vector_store", return_value=mock_store), \
+             patch("app.services.ai.agents.policy_rag._factory.get_embedder", return_value=mock_embedder), \
+             patch("app.services.ai.agents.policy_rag._needs_ingestion", return_value=False):
             mock_store.similarity_search.return_value = []
             answer_policy_question(db, "test question", user_role=None)
 
@@ -87,9 +87,9 @@ class TestAnswerPolicyQuestionRBAC:
         mock_embedder = MagicMock()
         mock_embedder.embed_query.return_value = [0.1] * 10
 
-        with patch("app.services.ai.policy_rag._factory.get_vector_store", return_value=mock_store), \
-             patch("app.services.ai.policy_rag._factory.get_embedder", return_value=mock_embedder), \
-             patch("app.services.ai.policy_rag._needs_ingestion", return_value=False):
+        with patch("app.services.ai.agents.policy_rag._factory.get_vector_store", return_value=mock_store), \
+             patch("app.services.ai.agents.policy_rag._factory.get_embedder", return_value=mock_embedder), \
+             patch("app.services.ai.agents.policy_rag._needs_ingestion", return_value=False):
             mock_store.similarity_search.return_value = []
             answer_policy_question(db, "vacation days", user_role=EmployeeRole.EMPLOYEE)
 
@@ -105,8 +105,8 @@ class TestAnswerPolicyQuestionRBAC:
         db.commit()
 
         mock_store = MagicMock()
-        with patch("app.services.ai.policy_rag._factory.get_vector_store", return_value=mock_store), \
-             patch("app.services.ai.policy_rag._needs_ingestion", return_value=False):
+        with patch("app.services.ai.agents.policy_rag._factory.get_vector_store", return_value=mock_store), \
+             patch("app.services.ai.agents.policy_rag._needs_ingestion", return_value=False):
             result = answer_policy_question(db, "anything", user_role=EmployeeRole.EMPLOYEE)
 
         assert "do not have access" in result["answer"].lower()

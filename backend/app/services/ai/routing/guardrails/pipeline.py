@@ -18,7 +18,7 @@ from typing import List, Optional, Tuple
 from sqlalchemy.orm import Session
 
 from app.models.employee import Employee
-from app.services.ai.middleware.base import Guard, GuardResult, InputTransformer
+from app.services.ai.routing.guardrails.middleware.base import Guard, GuardResult, InputTransformer
 
 
 class GuardrailPipeline:
@@ -67,7 +67,7 @@ class GuardrailPipeline:
                 "guardrail": blocked.route,
             }
 
-        from app.services.ai.router_agent import route_and_answer
+        from app.services.ai.routing.router_agent import route_and_answer
         return route_and_answer(db, user, processed, history=history, session_id=session_id)
 
 
@@ -78,10 +78,10 @@ def get_pipeline() -> GuardrailPipeline:
     Add / remove middleware here — no changes needed in endpoints.
     """
     from app.services.ai import factory as _factory
-    from app.services.ai.guardrail_routes import ALL_GUARDRAIL_ROUTES
-    from app.services.ai.middleware.guardrail import SemanticGuardrail
-    from app.services.ai.middleware.pii import PIIMiddleware
-    from app.services.ai.semantic_router import SemanticRouter
+    from app.services.ai.routing.guardrails.routes import ALL_GUARDRAIL_ROUTES
+    from app.services.ai.routing.guardrails.middleware.guardrail import SemanticGuardrail
+    from app.services.ai.routing.guardrails.middleware.pii import PIIMiddleware
+    from app.services.ai.routing.semantic_router import SemanticRouter
     from app.core.config import AI_GUARDRAIL_THRESHOLD
 
     guardrail_router = SemanticRouter(

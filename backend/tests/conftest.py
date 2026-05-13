@@ -30,7 +30,7 @@ def _pipeline_isolation():
     Individual tests may override ai_factory.get_embedder within their own
     patch context; the innermost patch wins.
     """
-    from app.services.ai.pipeline import get_pipeline
+    from app.services.ai.routing.guardrails.pipeline import get_pipeline
     from app.services.ai import factory as _ai_factory
 
     get_pipeline.cache_clear()

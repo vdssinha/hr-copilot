@@ -3,7 +3,7 @@ Unit tests for sql_guardrails — the SQL safety layer.
 No DB or LLM needed.
 """
 import pytest
-from app.services.ai.sql_guardrails import (
+from app.services.ai.core.security.sql_safety import (
     validate_sql, scrub_forbidden_columns, mask_for_llm, SQLGuardError,
 )
 

@@ -18,7 +18,7 @@ from langgraph.graph import StateGraph, END
 from sqlalchemy.orm import Session
 
 from app.models.employee import Employee
-from app.services.ai.router_agent import classify_intent
+from app.services.ai.routing.router_agent import classify_intent
 
 
 class AgentState(TypedDict):
@@ -55,7 +55,7 @@ def node_classify(state: AgentState) -> dict:
 
 
 def node_policy_rag(state: AgentState) -> dict:
-    from app.services.ai.policy_rag import answer_policy_question
+    from app.services.ai.agents.policy_rag import answer_policy_question
     user = state["user"]
     try:
         result = answer_policy_question(
@@ -72,7 +72,7 @@ def node_policy_rag(state: AgentState) -> dict:
 
 
 def node_sql_agent(state: AgentState) -> dict:
-    from app.services.ai.sql_agent import run_sql_query
+    from app.services.ai.agents.sql_agent import run_sql_query
     try:
         result = run_sql_query(state["db"], state["user"], state["message"], history=state.get("history", []), session_id=state.get("session_id"))
         return {"result": dict(result)}
@@ -81,7 +81,7 @@ def node_sql_agent(state: AgentState) -> dict:
 
 
 def node_action_agent(state: AgentState) -> dict:
-    from app.services.ai.action_agent import run_action
+    from app.services.ai.agents.action_agent import run_action
     try:
         result = run_action(state["db"], state["user"], state["message"], history=state.get("history", []), session_id=state.get("session_id"))
         return {"result": dict(result)}

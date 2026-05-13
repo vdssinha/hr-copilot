@@ -14,8 +14,8 @@ from __future__ import annotations
 
 from typing import Optional, TYPE_CHECKING
 
-from app.services.ai.middleware.base import Guard, GuardResult
-from app.services.ai.semantic_router import SemanticRouter
+from app.services.ai.routing.guardrails.middleware.base import Guard, GuardResult
+from app.services.ai.routing.semantic_router import SemanticRouter
 
 if TYPE_CHECKING:
     from app.models.employee import Employee

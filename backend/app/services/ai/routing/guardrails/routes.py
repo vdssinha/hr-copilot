@@ -10,7 +10,7 @@ Three guard categories:
 These routes are fed into a SemanticRouter that runs BEFORE the main intent router.
 A match causes immediate rejection with a safe user-facing message.
 """
-from app.services.ai.semantic_router import Route
+from app.services.ai.routing.semantic_router import Route
 
 # ── Off-topic ─────────────────────────────────────────────────────────────────
 

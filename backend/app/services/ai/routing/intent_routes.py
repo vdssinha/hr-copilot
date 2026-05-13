@@ -7,7 +7,7 @@ Utterances sourced directly from Requirement.md — "Example User Questions",
 Add or remove utterances here to tune routing accuracy — no code changes elsewhere.
 UNKNOWN has no route; low-confidence scores fall through to that label automatically.
 """
-from app.services.ai.semantic_router import Route
+from app.services.ai.routing.semantic_router import Route
 
 # ── Policy RAG ────────────────────────────────────────────────────────────────
 # Source: Requirement.md § Policy RAG Assistant — Example User Questions

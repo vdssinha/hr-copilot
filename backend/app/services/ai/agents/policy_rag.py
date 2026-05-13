@@ -16,9 +16,9 @@ from app.core.config import (
     POLICY_RAG_SIMILARITY_THRESHOLD,
 )
 from app.services.ai import factory as _factory
-from app.services.ai.context import build_history_block
+from app.services.ai.core.memory.context import build_history_block
 from app.services.ai.interfaces.vector_store import Document
-from app.services.ai.memory import build_memory_section, maybe_summarize, store_agent_turn
+from app.services.ai.core.memory.memory import build_memory_section, maybe_summarize, store_agent_turn
 
 
 _SYSTEM_PROMPT = """You are an HR policy assistant.

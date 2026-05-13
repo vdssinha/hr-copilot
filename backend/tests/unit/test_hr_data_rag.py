@@ -7,7 +7,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from app.models.employee import EmployeeRole
-from app.services.ai.hr_data_rag import (
+from app.services.ai.agents.hr_data_rag import (
     _row_to_text,
     ingest_hr_data,
     query_hr_data,
@@ -74,8 +74,8 @@ class TestIngestHRData:
         mock_embedder = MagicMock()
         mock_embedder.embed.return_value = [[0.1] * 10, [0.2] * 10]
 
-        with patch("app.services.ai.hr_data_rag._factory.get_vector_store", return_value=mock_store), \
-             patch("app.services.ai.hr_data_rag._factory.get_embedder", return_value=mock_embedder):
+        with patch("app.services.ai.agents.hr_data_rag._factory.get_vector_store", return_value=mock_store), \
+             patch("app.services.ai.agents.hr_data_rag._factory.get_embedder", return_value=mock_embedder):
             count = ingest_hr_data(csv_path)
 
         assert count == 2  # one doc per employee
@@ -90,8 +90,8 @@ class TestIngestHRData:
         mock_embedder = MagicMock()
         mock_embedder.embed.return_value = [[0.1] * 10, [0.2] * 10]
 
-        with patch("app.services.ai.hr_data_rag._factory.get_vector_store", return_value=mock_store), \
-             patch("app.services.ai.hr_data_rag._factory.get_embedder", return_value=mock_embedder):
+        with patch("app.services.ai.agents.hr_data_rag._factory.get_vector_store", return_value=mock_store), \
+             patch("app.services.ai.agents.hr_data_rag._factory.get_embedder", return_value=mock_embedder):
             ingest_hr_data(csv_path)
 
         stored_docs = mock_store.add_documents.call_args[0][0]
@@ -108,8 +108,8 @@ class TestIngestHRData:
         mock_embedder = MagicMock()
         mock_embedder.embed.return_value = [[0.1] * 10, [0.2] * 10]
 
-        with patch("app.services.ai.hr_data_rag._factory.get_vector_store", return_value=mock_store), \
-             patch("app.services.ai.hr_data_rag._factory.get_embedder", return_value=mock_embedder):
+        with patch("app.services.ai.agents.hr_data_rag._factory.get_vector_store", return_value=mock_store), \
+             patch("app.services.ai.agents.hr_data_rag._factory.get_embedder", return_value=mock_embedder):
             ingest_hr_data(csv_path)
 
         stored_docs = mock_store.add_documents.call_args[0][0]
@@ -121,7 +121,7 @@ class TestIngestHRData:
 
 class TestQueryHRDataAccessControl:
     def _make_store(self, doc_content="Alice | salary: 90000 | manager_id: M001"):
-        from app.services.ai.interfaces.vector_store import Document
+        from app.services.ai.interfaces.vector_store import Document  # interfaces stay unchanged
         mock_store = MagicMock()
         mock_store.count.return_value = 5
         doc = Document(content=doc_content, metadata={"employee_id": "E001", "manager_id": "M001"})
@@ -139,9 +139,9 @@ class TestQueryHRDataAccessControl:
         mock_llm = MagicMock()
         mock_llm.generate.return_value = "Your salary is 90000."
 
-        with patch("app.services.ai.hr_data_rag._factory.get_vector_store", return_value=mock_store), \
-             patch("app.services.ai.hr_data_rag._factory.get_embedder", return_value=mock_embedder), \
-             patch("app.services.ai.hr_data_rag._factory.get_llm_provider", return_value=mock_llm):
+        with patch("app.services.ai.agents.hr_data_rag._factory.get_vector_store", return_value=mock_store), \
+             patch("app.services.ai.agents.hr_data_rag._factory.get_embedder", return_value=mock_embedder), \
+             patch("app.services.ai.agents.hr_data_rag._factory.get_llm_provider", return_value=mock_llm):
             result = query_hr_data(
                 "what is my salary",
                 EmployeeRole.EMPLOYEE,
@@ -158,7 +158,7 @@ class TestQueryHRDataAccessControl:
         mock_store = MagicMock()
         mock_store.count.return_value = 5
 
-        with patch("app.services.ai.hr_data_rag._factory.get_vector_store", return_value=mock_store):
+        with patch("app.services.ai.agents.hr_data_rag._factory.get_vector_store", return_value=mock_store):
             result = query_hr_data("what is my salary", EmployeeRole.EMPLOYEE, employee_code="")
 
         assert result["rows_found"] == 0
@@ -170,9 +170,9 @@ class TestQueryHRDataAccessControl:
         mock_llm = MagicMock()
         mock_llm.generate.return_value = "Direct reports: ..."
 
-        with patch("app.services.ai.hr_data_rag._factory.get_vector_store", return_value=mock_store), \
-             patch("app.services.ai.hr_data_rag._factory.get_embedder", return_value=mock_embedder), \
-             patch("app.services.ai.hr_data_rag._factory.get_llm_provider", return_value=mock_llm):
+        with patch("app.services.ai.agents.hr_data_rag._factory.get_vector_store", return_value=mock_store), \
+             patch("app.services.ai.agents.hr_data_rag._factory.get_embedder", return_value=mock_embedder), \
+             patch("app.services.ai.agents.hr_data_rag._factory.get_llm_provider", return_value=mock_llm):
             result = query_hr_data(
                 "show salary for my team",
                 EmployeeRole.MANAGER,
@@ -189,9 +189,9 @@ class TestQueryHRDataAccessControl:
         mock_llm = MagicMock()
         mock_llm.generate.return_value = "..."
 
-        with patch("app.services.ai.hr_data_rag._factory.get_vector_store", return_value=mock_store), \
-             patch("app.services.ai.hr_data_rag._factory.get_embedder", return_value=mock_embedder), \
-             patch("app.services.ai.hr_data_rag._factory.get_llm_provider", return_value=mock_llm):
+        with patch("app.services.ai.agents.hr_data_rag._factory.get_vector_store", return_value=mock_store), \
+             patch("app.services.ai.agents.hr_data_rag._factory.get_embedder", return_value=mock_embedder), \
+             patch("app.services.ai.agents.hr_data_rag._factory.get_llm_provider", return_value=mock_llm):
             query_hr_data("list team salaries", EmployeeRole.MANAGER, employee_code="M001")
 
         system_arg = mock_llm.generate.call_args.kwargs.get("system", "")
@@ -204,9 +204,9 @@ class TestQueryHRDataAccessControl:
         mock_llm = MagicMock()
         mock_llm.generate.return_value = "Full report."
 
-        with patch("app.services.ai.hr_data_rag._factory.get_vector_store", return_value=mock_store), \
-             patch("app.services.ai.hr_data_rag._factory.get_embedder", return_value=mock_embedder), \
-             patch("app.services.ai.hr_data_rag._factory.get_llm_provider", return_value=mock_llm):
+        with patch("app.services.ai.agents.hr_data_rag._factory.get_vector_store", return_value=mock_store), \
+             patch("app.services.ai.agents.hr_data_rag._factory.get_embedder", return_value=mock_embedder), \
+             patch("app.services.ai.agents.hr_data_rag._factory.get_llm_provider", return_value=mock_llm):
             result = query_hr_data("show all records", EmployeeRole.ADMIN)
 
         call_kwargs = mock_store.similarity_search.call_args
@@ -217,7 +217,7 @@ class TestQueryHRDataAccessControl:
         mock_store = MagicMock()
         mock_store.count.return_value = 0
 
-        with patch("app.services.ai.hr_data_rag._factory.get_vector_store", return_value=mock_store):
+        with patch("app.services.ai.agents.hr_data_rag._factory.get_vector_store", return_value=mock_store):
             result = query_hr_data("any question", EmployeeRole.MANAGER, employee_code="M001")
 
         assert "not yet ingested" in result["answer"].lower()

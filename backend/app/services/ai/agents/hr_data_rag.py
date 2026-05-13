@@ -16,9 +16,9 @@ from typing import List, Optional, TypedDict
 from app.core.config import AI_MAX_TOKENS_HR_DATA_RAG_ANSWER
 from app.models.employee import Employee, EmployeeRole
 from app.services.ai import factory as _factory
-from app.services.ai.context import build_history_block
+from app.services.ai.core.memory.context import build_history_block
 from app.services.ai.interfaces.vector_store import Document
-from app.services.ai.memory import build_memory_section, maybe_summarize, store_agent_turn
+from app.services.ai.core.memory.memory import build_memory_section, maybe_summarize, store_agent_turn
 from typing import Optional
 
 _COLLECTION = "hr_data"

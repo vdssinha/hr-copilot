@@ -66,7 +66,7 @@ def _extract_text_from_path(path: Path) -> str:
     """Extract plain text from .md / .txt / .pdf / .docx."""
     import sys
     sys.path.insert(0, str(Path(__file__).parent.parent))
-    from app.services.ai.document_loader import extract_text
+    from app.services.ai.core.tools.document_loader import extract_text
     return extract_text(path)
 
 
@@ -727,7 +727,7 @@ HR_DATA_CSV = Path(__file__).parent.parent / "data" / "employees" / "hr_data.csv
 
 
 def seed_hr_data() -> None:
-    from app.services.ai.hr_data_rag import ingest_hr_data
+    from app.services.ai.agents.hr_data_rag import ingest_hr_data
     if not HR_DATA_CSV.exists():
         print("  [skip] hr_data.csv not found")
         return
@@ -757,7 +757,7 @@ if __name__ == "__main__":
         seed_hr_data()
 
         print("\nIngesting HR policies into vector store…")
-        from app.services.ai.policy_rag import ingest_policies
+        from app.services.ai.agents.policy_rag import ingest_policies
         count = ingest_policies(db)
         print(f"  [policies] ingested {count} chunks")
 

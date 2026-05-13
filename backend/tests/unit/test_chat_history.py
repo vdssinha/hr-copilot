@@ -8,7 +8,7 @@ import json
 import pytest
 from unittest.mock import MagicMock, patch
 
-from app.services.ai.context import build_history_block
+from app.services.ai.core.memory.context import build_history_block
 from app.services.ai import factory as ai_factory
 
 
@@ -81,7 +81,7 @@ def test_history_block_missing_content_defaults_empty():
 
 def test_policy_rag_injects_history_into_llm_prompt():
     """History block must appear in the prompt sent to the LLM (direct service call)."""
-    from app.services.ai import policy_rag as _policy_rag
+    from app.services.ai.agents import policy_rag as _policy_rag
     from app.models.employee import EmployeeRole
     from sqlalchemy import create_engine
     from sqlalchemy.orm import sessionmaker

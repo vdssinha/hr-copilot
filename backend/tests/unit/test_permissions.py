@@ -5,7 +5,7 @@ No DB or LLM needed; Employee instances built with minimal fields.
 import pytest
 from unittest.mock import MagicMock
 from app.models.employee import EmployeeRole
-from app.services.ai.permissions import can_perform, allowed_actions
+from app.services.ai.core.security.permissions import can_perform, allowed_actions
 
 
 def _emp(role: EmployeeRole):

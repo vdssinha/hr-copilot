@@ -13,11 +13,11 @@ from sqlalchemy import text
 from sqlalchemy.orm import Session
 
 from app.core.config import AI_MAX_TOKENS_SQL_AGENT_QUERY, AI_MAX_TOKENS_SQL_AGENT_SUMMARY
-from app.services.ai.context import build_history_block
+from app.services.ai.core.memory.context import build_history_block
 from app.models.employee import Employee, EmployeeRole
 from app.services.ai import factory as _factory
-from app.services.ai.sql_guardrails import validate_sql, scrub_forbidden_columns, mask_for_llm, SQLGuardError
-from app.services.ai.memory import build_memory_section, maybe_summarize, store_agent_turn
+from app.services.ai.core.security.sql_safety import validate_sql, scrub_forbidden_columns, mask_for_llm, SQLGuardError
+from app.services.ai.core.memory.memory import build_memory_section, maybe_summarize, store_agent_turn
 
 # Tables the SQL agent may query — sorted by safety
 _ALLOWED_TABLES = [

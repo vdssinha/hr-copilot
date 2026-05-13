@@ -12,7 +12,7 @@ from app.models.employee import Employee, EmployeeRole
 from app.models.ai_audit_log import AIIntent, ActionStatus
 from app.schemas.common import APIResponse
 from app.services import announcement_service
-from app.services.ai.audit import log_ai_interaction
+from app.services.ai.core.audit import log_ai_interaction
 
 router = APIRouter()
 

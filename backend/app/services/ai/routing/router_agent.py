@@ -20,8 +20,8 @@ from app.core.config import (
 )
 from app.models.employee import Employee
 from app.services.ai import factory as _factory
-from app.services.ai.context import build_history_block
-from app.services.ai.memory import build_memory_section, maybe_summarize
+from app.services.ai.core.memory.context import build_history_block
+from app.services.ai.core.memory.memory import build_memory_section, maybe_summarize
 
 Intent = Literal["POLICY_QA", "SQL_QUERY", "HR_ACTION", "UNKNOWN"]
 
@@ -74,8 +74,8 @@ class RouteResult(TypedDict):
 @lru_cache(maxsize=1)
 def _get_semantic_router():
     """Build once, reuse across requests. lru_cache makes it a lazy singleton."""
-    from app.services.ai.intent_routes import ALL_ROUTES
-    from app.services.ai.semantic_router import SemanticRouter
+    from app.services.ai.routing.intent_routes import ALL_ROUTES
+    from app.services.ai.routing.semantic_router import SemanticRouter
 
     encoder = _factory.get_embedder()
     return SemanticRouter(
@@ -159,17 +159,17 @@ def route_and_answer(db: Session, user: Employee, message: str, history: list = 
     route = classify_intent(message, history=history, db=db, user_id=user.id, session_id=session_id)
 
     if route["intent"] == "POLICY_QA":
-        from app.services.ai.policy_rag import answer_policy_question
+        from app.services.ai.agents.policy_rag import answer_policy_question
         result = answer_policy_question(db, message, user_role=user.role, policy_group=user.policy_group, history=history, session_id=session_id, user_id=user.id)
         return {"route": route, "result": result}
 
     if route["intent"] == "SQL_QUERY":
-        from app.services.ai.sql_agent import run_sql_query
+        from app.services.ai.agents.sql_agent import run_sql_query
         result = run_sql_query(db, user, message, history=history, session_id=session_id)
         return {"route": route, "result": result}
 
     if route["intent"] == "HR_ACTION":
-        from app.services.ai.action_agent import run_action
+        from app.services.ai.agents.action_agent import run_action
         result = run_action(db, user, message, history=history, session_id=session_id)
         return {"route": route, "result": result}
 

@@ -20,7 +20,7 @@ from app.models.employee import Employee, EmployeeRole, EmploymentType, Employee
 from app.models.hr_policy import PolicyCategory
 from app.models.role_category_access import RoleCategoryAccess
 from app.services.ai import factory as _factory
-from app.services.ai.sql_guardrails import SQLGuardError, validate_sql
+from app.services.ai.core.security.sql_safety import SQLGuardError, validate_sql
 
 
 # ─── In-memory DB fixtures ────────────────────────────────────────────────────
@@ -106,12 +106,12 @@ class TestPolicyRagInjection:
         fake_vs.similarity_search.return_value = [(injected_doc, 0.3)]
 
         with (
-            patch("app.services.ai.policy_rag._factory.get_llm_provider", return_value=fake_llm),
-            patch("app.services.ai.policy_rag._factory.get_embedder", return_value=fake_embedder),
-            patch("app.services.ai.policy_rag._factory.get_vector_store", return_value=fake_vs),
-            patch("app.services.ai.policy_rag._needs_ingestion", return_value=False),
+            patch("app.services.ai.agents.policy_rag._factory.get_llm_provider", return_value=fake_llm),
+            patch("app.services.ai.agents.policy_rag._factory.get_embedder", return_value=fake_embedder),
+            patch("app.services.ai.agents.policy_rag._factory.get_vector_store", return_value=fake_vs),
+            patch("app.services.ai.agents.policy_rag._needs_ingestion", return_value=False),
         ):
-            from app.services.ai.policy_rag import answer_policy_question
+            from app.services.ai.agents.policy_rag import answer_policy_question
             result = answer_policy_question(
                 db,
                 "How many casual leaves do I get?",
@@ -143,12 +143,12 @@ class TestPolicyRagInjection:
         fake_vs.similarity_search.return_value = [(injected_doc, 0.4)]
 
         with (
-            patch("app.services.ai.policy_rag._factory.get_llm_provider", return_value=fake_llm),
-            patch("app.services.ai.policy_rag._factory.get_embedder", return_value=fake_embedder),
-            patch("app.services.ai.policy_rag._factory.get_vector_store", return_value=fake_vs),
-            patch("app.services.ai.policy_rag._needs_ingestion", return_value=False),
+            patch("app.services.ai.agents.policy_rag._factory.get_llm_provider", return_value=fake_llm),
+            patch("app.services.ai.agents.policy_rag._factory.get_embedder", return_value=fake_embedder),
+            patch("app.services.ai.agents.policy_rag._factory.get_vector_store", return_value=fake_vs),
+            patch("app.services.ai.agents.policy_rag._needs_ingestion", return_value=False),
         ):
-            from app.services.ai.policy_rag import answer_policy_question
+            from app.services.ai.agents.policy_rag import answer_policy_question
             result = answer_policy_question(db, "What is the sick leave policy?", user_role=employee.role)
 
         assert "pan" not in result["answer"].lower()
@@ -176,12 +176,12 @@ class TestPolicyRagInjection:
         fake_vs.similarity_search.return_value = [(injected_doc, 0.35)]
 
         with (
-            patch("app.services.ai.policy_rag._factory.get_llm_provider", return_value=fake_llm),
-            patch("app.services.ai.policy_rag._factory.get_embedder", return_value=fake_embedder),
-            patch("app.services.ai.policy_rag._factory.get_vector_store", return_value=fake_vs),
-            patch("app.services.ai.policy_rag._needs_ingestion", return_value=False),
+            patch("app.services.ai.agents.policy_rag._factory.get_llm_provider", return_value=fake_llm),
+            patch("app.services.ai.agents.policy_rag._factory.get_embedder", return_value=fake_embedder),
+            patch("app.services.ai.agents.policy_rag._factory.get_vector_store", return_value=fake_vs),
+            patch("app.services.ai.agents.policy_rag._needs_ingestion", return_value=False),
         ):
-            from app.services.ai.policy_rag import answer_policy_question
+            from app.services.ai.agents.policy_rag import answer_policy_question
             result = answer_policy_question(db, "How many annual leaves?", user_role=employee.role)
 
         # Payroll data must not appear in the answer
@@ -238,9 +238,9 @@ class TestSemanticGuardrailJailbreak:
 
     def _make_pipeline_with_mock_router(self, route_name: str, score: float):
         """Return a GuardrailPipeline whose SemanticRouter always fires `route_name`."""
-        from app.services.ai.middleware.guardrail import SemanticGuardrail
-        from app.services.ai.middleware.base import GuardResult
-        from app.services.ai.pipeline import GuardrailPipeline
+        from app.services.ai.routing.guardrails.middleware.guardrail import SemanticGuardrail
+        from app.services.ai.routing.guardrails.middleware.base import GuardResult
+        from app.services.ai.routing.guardrails.pipeline import GuardrailPipeline
 
         mock_router = MagicMock()
         mock_router.return_value = (route_name, score)  # router is callable
