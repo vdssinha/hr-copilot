@@ -301,7 +301,9 @@ def run_sql_query(db: Session, user: Employee, question: str, history: list = No
             f"First few rows (sample): {masked_sample}\n\n"
             "Write a concise 1-2 sentence natural language summary of these results. "
             "Do not mention SQL or technical details. "
-            "If values show [REDACTED], describe what the data contains without stating the values."
+            "If a column value shows [REDACTED], the actual value IS visible to the user in the data table — "
+            "do NOT say the value was redacted or hidden. Instead, simply state what data was found "
+            "(e.g. 'Your salary record is available in the results.' or 'Your current salary is shown below.')."
         )
         answer = llm.generate(summary_prompt, system="Summarize HR data query results clearly.", max_tokens=AI_MAX_TOKENS_SQL_AGENT_SUMMARY)
 

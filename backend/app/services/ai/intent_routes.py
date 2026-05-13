@@ -72,7 +72,6 @@ SQL_QUERY_ROUTE = Route(
         # natural variations
         "How many employees are in the engineering department?",
         "List all employees in the marketing team.",
-        "How many people are on sick leave today?",
         "What is the headcount by department?",
         "List employees hired this year.",
         "How many tickets were created last month?",
@@ -129,6 +128,17 @@ HR_ACTION_ROUTE = Route(
         "Put in a holiday request for next month.",
         "Cancel my leave application.",
         "How many sick days do I have left?",
+        # today / immediate leave variants
+        "Apply for today sick leave.",
+        "Apply sick leave for today.",
+        "I need sick leave today.",
+        "Take a sick day today.",
+        "Apply for a sick day today.",
+        "Apply casual leave for today.",
+        "Apply leave for today.",
+        "I am sick today, apply sick leave.",
+        "Mark me as on leave today.",
+        "Apply for annual leave starting today.",
     ],
 )
 
