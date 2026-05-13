@@ -29,8 +29,12 @@ _ALLOWED_TABLES = [
 # Schema description with sensitive columns pre-excluded
 _TABLE_SCHEMAS = {
     "employees": (
-        "employees(id, employee_code, name, email, role [values: EMPLOYEE|MANAGER|ADMIN|HR|MARKETING|C_LEVEL], "
-        "department_id, manager_id, job_title, employment_type [values: FULL_TIME|PART_TIME|CONTRACT], "
+        "employees(id, employee_code, name, email, "
+        "role [values: EMPLOYEE|MANAGER|ADMIN|HR|MARKETING|C_LEVEL — system access level ONLY, NOT job function], "
+        "department_id, manager_id, "
+        "job_title [free-text profession e.g. 'Software Engineer', 'Data Analyst', 'Product Manager' — "
+        "use LOWER(job_title) LIKE '%keyword%' to find employees by profession], "
+        "employment_type [values: FULL_TIME|PART_TIME|CONTRACT], "
         "status [values: ACTIVE|INACTIVE|NOTICE|TERMINATED], joining_date)"
     ),
     "departments": "departments(id, name, description, head_id)",
@@ -107,9 +111,8 @@ NEVER SELECT these columns for any role:
 If the user asks about bank/IFSC/PAN/Aadhaar details, respond exactly (no SQL):
   "For security, bank and PAN details are only viewable on your Profile page."
 
-current_salary_usd and date_of_birth are NOT in the forbidden list.
-Include them in SELECT when the access rules above permit it.
-Do not add special handling — the system manages display formatting.
+date_of_birth is NOT in the forbidden list.
+Include it in SELECT when the access rules above permit it.
 
 ----------------------
 DECISION RULE

@@ -229,10 +229,13 @@ def _ndjson(event_type: str, data: dict) -> str:
 def _stream_router(
     db: Session, user: Employee, message: str, history: list = None, session_id: str = None,
 ) -> Generator[str, None, None]:
+    t0 = time.perf_counter()
     yield _ndjson("status", {"message": "Checking guardrails…"})
 
     processed, blocked = get_pipeline().preprocess(message, user)
     if blocked:
+        log_ai_interaction(db, user, message, AIIntent.UNKNOWN, ActionStatus.REFUSED,
+                           tool_name=blocked.route, latency_ms=(time.perf_counter() - t0) * 1000)
         yield _ndjson("result", {
             "route": {"intent": "BLOCKED", "confidence": 1.0, "reason": f"Guardrail: {blocked.route}", "router": "guardrail"},
             "result": {"answer": blocked.response},
@@ -252,24 +255,38 @@ def _stream_router(
             yield _ndjson("status", {"message": "Searching HR policies…"})
             from app.services.ai.policy_rag import answer_policy_question
             result = answer_policy_question(db, processed, user_role=user.role, policy_group=user.policy_group, history=history, session_id=session_id, user_id=user.id)
+            log_ai_interaction(db, user, message, AIIntent.POLICY_QA,
+                               ActionStatus.SUCCESS if result["sources"] else ActionStatus.REFUSED,
+                               tool_name="policy_rag", latency_ms=(time.perf_counter() - t0) * 1000)
             yield _ndjson("result", {"route": route, "result": dict(result)})
 
         elif intent == "SQL_QUERY":
             yield _ndjson("status", {"message": "Generating SQL query…"})
             result = run_sql_query(db, user, processed, history=history, session_id=session_id)
+            log_ai_interaction(db, user, message, AIIntent.SQL_QUERY,
+                               ActionStatus.SUCCESS if result["rows"] else ActionStatus.REFUSED,
+                               tool_name="sql_agent", records_accessed=[result["sql"]] if result["sql"] else None,
+                               latency_ms=(time.perf_counter() - t0) * 1000)
             yield _ndjson("result", {"route": route, "result": dict(result)})
 
         elif intent == "HR_ACTION":
             yield _ndjson("status", {"message": "Processing HR action…"})
             result = run_action(db, user, processed, history=history, session_id=session_id)
+            log_ai_interaction(db, user, message, AIIntent.HR_ACTION,
+                               ActionStatus.SUCCESS if result["success"] else ActionStatus.REFUSED,
+                               tool_name=result["action"], latency_ms=(time.perf_counter() - t0) * 1000)
             yield _ndjson("result", {"route": route, "result": dict(result)})
 
         else:
+            log_ai_interaction(db, user, message, AIIntent.UNKNOWN, ActionStatus.REFUSED,
+                               tool_name="router", latency_ms=(time.perf_counter() - t0) * 1000)
             yield _ndjson("result", {
                 "route": route,
                 "result": {"answer": "I'm not sure how to help with that. Try asking about HR policies, employee data, or HR tasks."},
             })
     except Exception as e:
+        log_ai_interaction(db, user, message, _INTENT_MAP.get(intent, AIIntent.UNKNOWN),
+                           ActionStatus.ERROR, latency_ms=(time.perf_counter() - t0) * 1000)
         yield _ndjson("error", {"message": str(e)})
 
     yield _ndjson("done", {})
