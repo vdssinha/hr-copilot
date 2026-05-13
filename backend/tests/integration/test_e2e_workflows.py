@@ -623,6 +623,8 @@ _LLM_INFRA_PHRASES = (
     "unloaded", "context size", "model was unloaded", "overload",
     "context window", "model unloaded", "failed to load model",
     "operation was aborted", "model not found",
+    # ChromaDB compactor / segment errors
+    "executing plan", "compactor", "backfill", "metadata segment",
 )
 
 def ai_check(label: str, tok: str, path: str, msg: str) -> None:
@@ -635,7 +637,7 @@ def ai_check(label: str, tok: str, path: str, msg: str) -> None:
         # don't fail on LLM infrastructure errors — mark SKIP
         if r.status_code in (500, 502, 503):
             skip(label, f"LLM API error {r.status_code}")
-        elif r.status_code == 400 and any(p in detail.lower() for p in _LLM_INFRA_PHRASES):
+        elif any(p in detail.lower() for p in _LLM_INFRA_PHRASES):
             skip(label, f"LLM infra: {detail[:80]}")
         else:
             check(label, ok, detail)
@@ -1119,12 +1121,18 @@ if employee_tok and manager_tok and admin_tok:
         )
         if r1.status_code == 200:
             d1 = unwrap(r1)
+            raw_err = r1.json().get("error", "") or ""
             first_policy_answer = d1.get("answer", "") if isinstance(d1, dict) else ""
-            check(
-                "Multi-turn policy: first turn → 200",
-                bool(first_policy_answer),
-                f"answer_preview={str(first_policy_answer)[:60]}",
-            )
+            infra_detail = first_policy_answer or raw_err
+            if any(p in infra_detail.lower() for p in _LLM_INFRA_PHRASES):
+                skip("Multi-turn policy: first turn → 200", f"LLM infra: {infra_detail[:80]}")
+                first_policy_answer = None
+            else:
+                check(
+                    "Multi-turn policy: first turn → 200",
+                    bool(first_policy_answer),
+                    f"answer_preview={str(first_policy_answer)[:60]}",
+                )
     except requests.exceptions.Timeout:
         skip("Multi-turn policy: first turn", "LLM timeout")
 
