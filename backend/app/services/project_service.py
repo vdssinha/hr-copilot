@@ -8,6 +8,8 @@ from app.models.employee import Employee, EmployeeRole
 from app.models.project import Project, EmployeeProject, ProjectStatus
 from app.models.skill import Skill, EmployeeSkill
 
+_PRIVILEGED_ROLES = {EmployeeRole.MANAGER, EmployeeRole.ADMIN, EmployeeRole.HR, EmployeeRole.C_LEVEL}
+
 
 def assign_employee_to_project(
     db: Session,
@@ -64,8 +66,7 @@ def view_own_projects(db: Session, user: Employee) -> dict:
 
 def search_employees_by_skill(db: Session, actor: Employee, skill_name: str) -> dict:
     """MANAGER/ADMIN/HR/C_LEVEL only. Searches employees by skill name (case-insensitive)."""
-    allowed = {EmployeeRole.MANAGER, EmployeeRole.ADMIN, EmployeeRole.HR, EmployeeRole.C_LEVEL}
-    if actor.role not in allowed:
+    if actor.role not in _PRIVILEGED_ROLES:
         return {"success": False, "error": "You do not have permission to search employees by skill."}
 
     results = (
@@ -93,8 +94,7 @@ def check_project_assignments(db: Session, actor: Employee) -> dict:
     MANAGER: projects that have at least one employee reporting to actor.
     HR/ADMIN/C_LEVEL: all active projects with their employees.
     """
-    allowed = {EmployeeRole.MANAGER, EmployeeRole.ADMIN, EmployeeRole.HR, EmployeeRole.C_LEVEL}
-    if actor.role not in allowed:
+    if actor.role not in _PRIVILEGED_ROLES:
         return {"success": False, "error": "You do not have permission to view project assignments."}
 
     if actor.role == EmployeeRole.MANAGER:
@@ -140,8 +140,7 @@ def check_project_assignments(db: Session, actor: Employee) -> dict:
 
 def list_projects(db: Session, actor: Employee) -> dict:
     """MANAGER/HR/ADMIN/C_LEVEL: list all projects."""
-    allowed = {EmployeeRole.MANAGER, EmployeeRole.ADMIN, EmployeeRole.HR, EmployeeRole.C_LEVEL}
-    if actor.role not in allowed:
+    if actor.role not in _PRIVILEGED_ROLES:
         return {"success": False, "error": "You do not have permission to list all projects."}
 
     projects = db.query(Project).order_by(Project.created_at.desc()).limit(50).all()
