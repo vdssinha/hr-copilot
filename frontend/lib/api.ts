@@ -267,11 +267,12 @@ export async function streamRouter(
   token: string,
   onEvent: (event: StreamEvent) => void,
   history: HistoryMessage[] = [],
+  confirmed = false,
 ): Promise<void> {
   const res = await fetch(`${BASE}/chat/router/stream`, {
     method: "POST",
     headers: authHeaders(token),
-    body: JSON.stringify({ message, history }),
+    body: JSON.stringify({ message, history, confirmed }),
   });
 
   if (!res.ok || !res.body) {

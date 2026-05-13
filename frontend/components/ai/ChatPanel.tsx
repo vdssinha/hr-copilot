@@ -56,6 +56,7 @@ function extractFromRouterResult(data: Record<string, unknown>): Omit<Message, "
     action: result.action as string,
     actionSuccess: result.success as boolean,
     actionData: result.data as Record<string, unknown>,
+    confirmationRequired: Boolean(result.confirmation_required),
   };
   return { text: (result?.answer as string) ?? JSON.stringify(result) };
 }
@@ -119,7 +120,12 @@ export function ChatPanel({ token, mode, messages, onMessages: setMessages }: Ch
           if (event.type === "status")   { setStatusText(event.message); statusLog.push(event.message); }
           else if (event.type === "result") {
             const ev = event as { type: "result"; route: unknown; result: unknown };
-            finalMsg = { ...extractFromRouterResult({ route: ev.route, result: ev.result }), statusLog: [...statusLog] };
+            const extracted = extractFromRouterResult({ route: ev.route, result: ev.result });
+            finalMsg = {
+              ...extracted,
+              statusLog: [...statusLog],
+              pendingMessage: extracted.confirmationRequired ? text : undefined,
+            };
           } else if (event.type === "error") {
             finalMsg = { text: event.message, error: event.message };
           }

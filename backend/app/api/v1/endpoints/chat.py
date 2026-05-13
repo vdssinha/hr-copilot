@@ -227,7 +227,7 @@ def _ndjson(event_type: str, data: dict) -> str:
 
 
 def _stream_router(
-    db: Session, user: Employee, message: str, history: list = None, session_id: str = None,
+    db: Session, user: Employee, message: str, history: list = None, session_id: str = None, confirmed: bool = False,
 ) -> Generator[str, None, None]:
     t0 = time.perf_counter()
     yield _ndjson("status", {"message": "Checking guardrails…"})
@@ -271,7 +271,7 @@ def _stream_router(
 
         elif intent == "HR_ACTION":
             yield _ndjson("status", {"message": "Processing HR action…"})
-            result = run_action(db, user, processed, history=history, session_id=session_id)
+            result = run_action(db, user, processed, history=history, session_id=session_id, confirmed=confirmed)
             log_ai_interaction(db, user, message, AIIntent.HR_ACTION,
                                ActionStatus.SUCCESS if result["success"] else ActionStatus.REFUSED,
                                tool_name=result["action"], latency_ms=(time.perf_counter() - t0) * 1000)
@@ -300,7 +300,7 @@ def chat_router_stream(
 ):
     """Streamable HTTP (NDJSON) version of /router — emits status events then the final result."""
     return StreamingResponse(
-        _stream_router(db, current_user, payload.message, history=[h.dict() for h in payload.history], session_id=payload.session_id),
+        _stream_router(db, current_user, payload.message, history=[h.dict() for h in payload.history], session_id=payload.session_id, confirmed=payload.confirmed),
         media_type="application/x-ndjson",
         headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
     )
