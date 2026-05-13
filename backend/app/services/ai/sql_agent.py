@@ -35,7 +35,8 @@ _TABLE_SCHEMAS = {
         "job_title [free-text profession e.g. 'Software Engineer', 'Data Analyst', 'Product Manager' — "
         "use LOWER(job_title) LIKE '%keyword%' to find employees by profession], "
         "employment_type [values: FULL_TIME|PART_TIME|CONTRACT], "
-        "status [values: ACTIVE|INACTIVE|NOTICE|TERMINATED], joining_date)"
+        "status [values: ACTIVE|INACTIVE|NOTICE|TERMINATED], joining_date, "
+        "current_salary_usd [ROLE-GATED — only accessible per access rules; unauthorized access → ACCESS_DENIED])"
     ),
     "departments": "departments(id, name, description, head_id)",
     "projects": "projects(id, name, description, status [values: PLANNING|ONGOING|COMPLETED|ON_HOLD], start_date, end_date)",
@@ -114,12 +115,19 @@ If the user asks about bank/IFSC/PAN/Aadhaar details, respond exactly (no SQL):
 date_of_birth is NOT in the forbidden list.
 Include it in SELECT when the access rules above permit it.
 
+current_salary_usd is ROLE-GATED (not absolutely forbidden):
+  - ADMIN / HR / C_LEVEL: may SELECT current_salary_usd for any employee.
+  - MANAGER: may SELECT current_salary_usd only for own record OR direct reports (manager_id = their id).
+  - EMPLOYEE / MARKETING: may SELECT current_salary_usd only for their OWN record (id = their id).
+  - Any query that would expose another employee's salary to an unauthorized role → respond exactly: ACCESS_DENIED
+
 ----------------------
 DECISION RULE
 ----------------------
 
 - Clear, permitted query → output SQL only, no explanation
 - User asks about bank/PAN → output the profile-page message above, nothing else
+- User asks about salary for another employee they are not authorized to see → ACCESS_DENIED
 - Ambiguous column or join → pick the most reasonable schema interpretation
 - Access violation → ACCESS_DENIED
 - Unanswerable from available schema → CANNOT_ANSWER
