@@ -140,6 +140,9 @@ POST /api/v1/chat/policy                     Policy RAG (role-filtered)
 POST /api/v1/chat/sql                        SQL Agent
 POST /api/v1/chat/actions                    HR Action Agent
 POST /api/v1/chat/router                     Unified router (auto-classify)
+POST /api/v1/chat/router/stream              Streaming NDJSON router
+POST /api/v1/chat/hr-data                    HR data RAG (manager/admin)
+POST /api/v1/chat/langgraph                  LangGraph multi-agent orchestration
 POST /api/v1/chat/policy/ingest              Re-index policies (admin only)
 
 # Admin (ADMIN role only)
@@ -191,32 +194,135 @@ See [docs/ai_permissions_matrix.md](docs/ai_permissions_matrix.md) for full matr
 hrCopilot/
 ├── backend/
 │   ├── app/
-│   │   ├── api/v1/endpoints/        FastAPI routers
-│   │   ├── core/                    Config, JWT, dependencies
-│   │   ├── db/                      Session, base
-│   │   ├── models/                  SQLAlchemy models (12 tables incl. role_category_access)
-│   │   ├── schemas/                 Pydantic schemas
-│   │   └── services/ai/
-│   │       ├── interfaces/          Abstract base classes (LLM, Embedder, VectorStore)
-│   │       ├── providers/           Concrete implementations (OpenAI, Anthropic, Chroma, FAISS)
-│   │       ├── factory.py           Config-driven provider instantiation
-│   │       ├── policy_rag.py        RAG pipeline
-│   │       ├── sql_agent.py         NL→SQL agent
-│   │       ├── sql_guardrails.py    SQL safety layer
-│   │       ├── action_agent.py      HR task automation
-│   │       ├── api_tools.py         Backend API tool implementations
-│   │       ├── permissions.py       RBAC action permissions
-│   │       ├── role_category_access.py  Document-level RBAC (role → category map)
-│   │       ├── router_agent.py      Intent classifier + router
-│   │       └── audit.py             AI audit logging
-│   ├── api/v1/endpoints/admin.py    Admin CRUD endpoints
-│   ├── data/policies/               HR policy markdown files (+ runtime uploads)
-│   ├── scripts/seed.py              DB initialisation + data seeding
-│   └── .env.example                 Environment variable reference
+│   │   ├── main.py                      FastAPI app factory
+│   │   ├── api/v1/
+│   │   │   ├── router.py                API router mount
+│   │   │   └── endpoints/
+│   │   │       ├── auth.py              Login → JWT
+│   │   │       ├── chat.py              All AI chat endpoints + streaming
+│   │   │       ├── leaves.py            Leave request + approval REST API
+│   │   │       ├── tickets.py           Ticket CRUD
+│   │   │       ├── projects.py          Project CRUD
+│   │   │       ├── announcements.py     Announcement feed
+│   │   │       └── admin.py             Admin CRUD (users, policies, roles)
+│   │   ├── core/
+│   │   │   ├── config.py                Settings via pydantic BaseSettings (.env)
+│   │   │   ├── dependencies.py          get_current_user, require_role, get_db
+│   │   │   └── security.py             JWT encode/decode, password hashing
+│   │   ├── db/
+│   │   │   ├── base.py                  Declarative base
+│   │   │   └── session.py               SQLAlchemy session factory
+│   │   ├── models/                      SQLAlchemy ORM models
+│   │   │   ├── employee.py              Employee + EmployeeRole enum
+│   │   │   ├── department.py
+│   │   │   ├── project.py
+│   │   │   ├── leave.py                 LeaveRequest + LeaveBalance
+│   │   │   ├── ticket.py
+│   │   │   ├── announcement.py
+│   │   │   ├── skill.py
+│   │   │   ├── job_history.py
+│   │   │   ├── hr_policy.py
+│   │   │   ├── policy_group.py
+│   │   │   ├── role_category_access.py  Document-level RBAC (role → category)
+│   │   │   ├── conversation_memory.py   Per-session AI memory
+│   │   │   ├── ai_audit_log.py          AI interaction audit trail
+│   │   │   ├── onboarding.py
+│   │   │   └── payroll.py
+│   │   ├── schemas/                     Pydantic request/response schemas
+│   │   │   ├── auth.py
+│   │   │   ├── chat.py                  ChatRequest (message, history, confirmed)
+│   │   │   ├── common.py                APIResponse wrapper
+│   │   │   └── admin.py
+│   │   └── services/
+│   │       ├── leave_service.py
+│   │       ├── ticket_service.py
+│   │       ├── project_service.py
+│   │       ├── announcement_service.py
+│   │       └── ai/
+│   │           ├── factory.py           Config-driven provider instantiation
+│   │           ├── interfaces/          Abstract base classes
+│   │           │   ├── llm.py           LLMProvider ABC
+│   │           │   ├── embedder.py      Embedder ABC
+│   │           │   └── vector_store.py  VectorStore ABC
+│   │           ├── providers/           Concrete implementations (swap via .env)
+│   │           │   ├── llm/
+│   │           │   │   ├── anthropic.py
+│   │           │   │   └── openai_llm.py
+│   │           │   ├── embedders/
+│   │           │   │   ├── voyage.py
+│   │           │   │   └── openai_embedder.py
+│   │           │   └── vector_stores/
+│   │           │       ├── chroma.py
+│   │           │       └── faiss_store.py
+│   │           ├── agents/              AI agent implementations
+│   │           │   ├── policy_rag.py    RAG pipeline (embed → search → generate)
+│   │           │   ├── sql_agent.py     NL→SQL agent with role-filtered schema
+│   │           │   ├── action_agent.py  HR task automation + confirmation gate
+│   │           │   ├── hr_data_rag.py   HR data RAG (manager/admin)
+│   │           │   └── langgraph_agent.py  LangGraph multi-agent orchestration
+│   │           ├── routing/             Intent classification + guardrails
+│   │           │   ├── router_agent.py  Intent classifier → agent dispatcher
+│   │           │   ├── semantic_router.py  Embedding-based semantic routing
+│   │           │   ├── intent_routes.py    Route definitions + examples
+│   │           │   └── guardrails/
+│   │           │       ├── pipeline.py      Guardrail pipeline (preprocess + run)
+│   │           │       ├── routes.py        Guardrail route registry
+│   │           │       └── middleware/
+│   │           │           ├── base.py      GuardrailMiddleware ABC
+│   │           │           ├── guardrail.py Jailbreak / injection detection
+│   │           │           └── pii.py       PII scrubbing
+│   │           └── core/                Cross-cutting AI concerns
+│   │               ├── audit.py         log_interaction() — writes ai_audit_logs
+│   │               ├── memory/
+│   │               │   ├── memory.py    Session memory store/retrieve/summarize
+│   │               │   └── context.py   History → prompt block builder
+│   │               ├── security/
+│   │               │   ├── permissions.py   can_perform(user, action) RBAC gate
+│   │               │   └── sql_safety.py    validate_sql, scrub_forbidden_columns
+│   │               └── tools/
+│   │                   ├── api_tools.py     Service-layer wrappers for action agent
+│   │                   └── document_loader.py  Policy file ingestion
+│   ├── alembic/                         DB migrations
+│   ├── scripts/seed.py                  DB init + data seeding + policy ingestion
+│   └── tests/
+│       ├── unit/                        Isolated unit tests (no DB/network)
+│       │   ├── test_action_agent_parse.py
+│       │   ├── test_permissions.py
+│       │   ├── test_policy_rag_rbac.py
+│       │   ├── test_prompt_injection_defense.py
+│       │   ├── test_routing_and_guardrails.py
+│       │   ├── test_sql_guardrails.py
+│       │   ├── test_hr_data_rag.py
+│       │   ├── test_leave_service.py
+│       │   ├── test_role_category_access.py
+│       │   └── test_chat_history.py
+│       └── integration/                 Live API + DB integration tests
+│           ├── test_admin_endpoints.py
+│           ├── test_chat_endpoints.py
+│           ├── test_e2e_workflows.py
+│           └── test_live_all_roles.py
 ├── frontend/
-│   ├── app/ai-copilot/              AI copilot page
-│   ├── app/admin/                   Admin portal (Users / Documents / Access Control)
-│   ├── components/ai/               Chat panel, source list, SQL table, action card
-│   └── lib/api.ts                   Typed API client (chat + admin)
-└── docs/                            Architecture, permissions, eval results
+│   ├── app/
+│   │   ├── layout.tsx                   Root layout + sidebar nav
+│   │   ├── page.tsx                     Redirect → /ai-copilot
+│   │   ├── ai-copilot/page.tsx          AI copilot page (mode selector + chat)
+│   │   ├── admin/page.tsx               Admin portal (Users / Policies / Access)
+│   │   └── login/page.tsx               JWT login form
+│   ├── components/ai/
+│   │   ├── ChatPanel.tsx                Message input, history, confirmation UI
+│   │   ├── ActionResultCard.tsx         HR action result display
+│   │   ├── SQLResultTable.tsx           Tabular SQL results
+│   │   ├── SourceList.tsx               Policy RAG citations
+│   │   ├── Announcements.tsx            Announcement feed
+│   │   ├── PendingApprovals.tsx         Manager leave approval panel
+│   │   ├── MyLeaves.tsx                 Employee leave history
+│   │   ├── MyProjects.tsx               Own project assignments
+│   │   └── MyTickets.tsx                Own tickets
+│   └── lib/
+│       ├── api.ts                       Typed API client (chat, admin, streaming)
+│       └── auth.ts                      JWT storage + role decode
+├── docs/                                Architecture, permissions matrix, eval results
+├── eval/                                Eval dataset + results
+├── data/                                Seed data + HR policy markdown files
+└── scripts/                             Utility scripts
 ```
