@@ -81,6 +81,17 @@ SQL_QUERY_ROUTE = Route(
         "Which employees report to me?",
         "Show me the leave balance for my team.",
         "Which department has the most open tickets?",
+        # salary / compensation queries → SQL agent with RBAC
+        "What is my salary?",
+        "Show me my salary.",
+        "What is my current salary?",
+        "How much do I earn?",
+        "What is my compensation?",
+        "Show salary details.",
+        "What is the salary of employees in engineering?",
+        "Show me my pay.",
+        "How much do I get paid?",
+        "What is my CTC?",
     ],
 )
 
