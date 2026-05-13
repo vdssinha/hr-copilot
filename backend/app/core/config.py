@@ -67,7 +67,8 @@ CHROMA_PERSIST_DIR       = os.getenv("CHROMA_PERSIST_DIR", "./data/chroma_db")
 DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./cbnest.db")
 
 # ── JWT ───────────────────────────────────────────────────────────────────────
-SECRET_KEY                  = os.getenv("SECRET_KEY", "change-me-in-production")
+_DEFAULT_SECRET = "change-me-in-production"
+SECRET_KEY                  = os.getenv("SECRET_KEY", _DEFAULT_SECRET)
 ALGORITHM                   = os.getenv("ALGORITHM", "HS256")
 ACCESS_TOKEN_EXPIRE_MINUTES = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", "480"))
 
@@ -78,6 +79,13 @@ BACKEND_BASE_URL  = os.getenv("BACKEND_BASE_URL",  "http://localhost:8000")
 # ── App ───────────────────────────────────────────────────────────────────────
 APP_ENV   = os.getenv("APP_ENV",   "development")
 LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO")
+
+# Fail fast in production with a weak secret — forged JWTs are a critical risk.
+if APP_ENV == "production" and SECRET_KEY == _DEFAULT_SECRET:
+    raise RuntimeError(
+        "SECRET_KEY must be set to a strong random value in production. "
+        "Generate one with: python -c \"import secrets; print(secrets.token_hex(32))\""
+    )
 
 # ── AI Generation Token Limits ────────────────────────────────────────────────
 # Correlation map (must hold when tuning any value):
@@ -142,6 +150,15 @@ AI_MAX_TOKENS_ACTION_AGENT_EXTRACT = int(os.getenv("AI_MAX_TOKENS_ACTION_AGENT_E
 #   plain English after execution. Always brief.
 #   Must be ≈ 0.5× ACTION_AGENT_EXTRACT (see correlation above).
 AI_MAX_TOKENS_ACTION_AGENT_SUMMARY = int(os.getenv("AI_MAX_TOKENS_ACTION_AGENT_SUMMARY", "500"))
+
+# ── Policy RAG Chunking & Retrieval ──────────────────────────────────────────
+# Chunk size and overlap control how HR policy documents are split before
+# embedding. Retrieval K sets how many chunks are fetched per query.
+# Similarity threshold is cosine distance: lower = more similar (0 = identical).
+POLICY_RAG_CHUNK_SIZE          = int(os.getenv("POLICY_RAG_CHUNK_SIZE",          "800"))
+POLICY_RAG_CHUNK_OVERLAP       = int(os.getenv("POLICY_RAG_CHUNK_OVERLAP",       "100"))
+POLICY_RAG_RETRIEVAL_K         = int(os.getenv("POLICY_RAG_RETRIEVAL_K",         "5"))
+POLICY_RAG_SIMILARITY_THRESHOLD = float(os.getenv("POLICY_RAG_SIMILARITY_THRESHOLD", "1.2"))
 
 # ── Conversation Memory ───────────────────────────────────────────────────────
 # Prior conversation turns (user+assistant pairs) sent to ALL agents so they

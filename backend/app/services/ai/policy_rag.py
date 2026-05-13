@@ -8,16 +8,18 @@ from app.models.employee import EmployeeRole
 from app.models.hr_policy import HRPolicy
 from app.models.role_category_access import RoleCategoryAccess
 from app.models.policy_group import GroupCategoryAccess
-from app.core.config import AI_MAX_TOKENS_POLICY_RAG_ANSWER
+from app.core.config import (
+    AI_MAX_TOKENS_POLICY_RAG_ANSWER,
+    POLICY_RAG_CHUNK_SIZE,
+    POLICY_RAG_CHUNK_OVERLAP,
+    POLICY_RAG_RETRIEVAL_K,
+    POLICY_RAG_SIMILARITY_THRESHOLD,
+)
 from app.services.ai import factory as _factory
 from app.services.ai.context import build_history_block
 from app.services.ai.interfaces.vector_store import Document
 from app.services.ai.memory import build_memory_section, maybe_summarize, store_agent_turn
 
-_CHUNK_SIZE = 800
-_CHUNK_OVERLAP = 100
-_RETRIEVAL_K = 5
-_SIMILARITY_THRESHOLD = 1.2  # cosine distance; lower = more similar (0 = identical)
 
 _SYSTEM_PROMPT = """You are an HR policy assistant.
 
@@ -72,8 +74,8 @@ def ingest_policies(db: Session) -> int:
         return 0
 
     splitter = RecursiveCharacterTextSplitter(
-        chunk_size=_CHUNK_SIZE,
-        chunk_overlap=_CHUNK_OVERLAP,
+        chunk_size=POLICY_RAG_CHUNK_SIZE,
+        chunk_overlap=POLICY_RAG_CHUNK_OVERLAP,
         separators=["\n## ", "\n### ", "\n\n", "\n", " "],
     )
     embedder = _factory.get_embedder()
@@ -96,12 +98,7 @@ def ingest_policies(db: Session) -> int:
     if not documents:
         return 0
 
-    # Embed in batches of 96 (Voyage limit)
-    batch_size = 96
-    all_embeddings = []
-    for i in range(0, len(documents), batch_size):
-        batch_texts = [d.content for d in documents[i : i + batch_size]]
-        all_embeddings.extend(embedder.embed(batch_texts))
+    all_embeddings = embedder.embed_documents([d.content for d in documents])
 
     store.clear()
     store.add_documents(documents, all_embeddings)
@@ -175,10 +172,10 @@ def answer_policy_question(
     store = _factory.get_vector_store("hr_policies")
 
     query_embedding = embedder.embed_query(question)
-    results = store.similarity_search(query_embedding, k=_RETRIEVAL_K, where=where)
+    results = store.similarity_search(query_embedding, k=POLICY_RAG_RETRIEVAL_K, where=where)
 
     # Filter by similarity threshold and deduplicate sources
-    relevant = [(doc, dist) for doc, dist in results if dist <= _SIMILARITY_THRESHOLD]
+    relevant = [(doc, dist) for doc, dist in results if dist <= POLICY_RAG_SIMILARITY_THRESHOLD]
 
     if not relevant:
         return PolicyAnswer(
