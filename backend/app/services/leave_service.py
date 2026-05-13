@@ -106,36 +106,31 @@ def check_leave_balance(
     }
 
 
-def approve_leave(db: Session, actor: Employee, request_id: int) -> dict:
+def _change_leave_status(
+    db: Session, actor: Employee, request_id: int, new_status: LeaveStatus
+) -> dict:
     req = db.query(LeaveRequest).filter(LeaveRequest.id == request_id).first()
     if not req:
         return {"success": False, "error": f"Leave request #{request_id} not found."}
     if req.status != LeaveStatus.PENDING:
         return {"success": False, "error": f"Request is already {req.status.value}."}
     if actor.role == EmployeeRole.EMPLOYEE:
-        return {"success": False, "error": "You do not have permission to approve leave requests."}
+        verb = "approve" if new_status == LeaveStatus.APPROVED else "reject"
+        return {"success": False, "error": f"You do not have permission to {verb} leave requests."}
 
-    req.status = LeaveStatus.APPROVED
+    req.status = new_status
     req.approved_by_id = actor.id
     req.approved_at = datetime.utcnow()
     db.commit()
-    return {"success": True, "data": {"id": req.id, "status": "APPROVED"}}
+    return {"success": True, "data": {"id": req.id, "status": new_status.value}}
+
+
+def approve_leave(db: Session, actor: Employee, request_id: int) -> dict:
+    return _change_leave_status(db, actor, request_id, LeaveStatus.APPROVED)
 
 
 def reject_leave(db: Session, actor: Employee, request_id: int) -> dict:
-    req = db.query(LeaveRequest).filter(LeaveRequest.id == request_id).first()
-    if not req:
-        return {"success": False, "error": f"Leave request #{request_id} not found."}
-    if req.status != LeaveStatus.PENDING:
-        return {"success": False, "error": f"Request is already {req.status.value}."}
-    if actor.role == EmployeeRole.EMPLOYEE:
-        return {"success": False, "error": "You do not have permission to reject leave requests."}
-
-    req.status = LeaveStatus.REJECTED
-    req.approved_by_id = actor.id
-    req.approved_at = datetime.utcnow()
-    db.commit()
-    return {"success": True, "data": {"id": req.id, "status": "REJECTED"}}
+    return _change_leave_status(db, actor, request_id, LeaveStatus.REJECTED)
 
 
 def list_pending_approvals(db: Session, actor: Employee) -> dict:
@@ -146,9 +141,8 @@ def list_pending_approvals(db: Session, actor: Employee) -> dict:
     query = db.query(LeaveRequest).filter(LeaveRequest.status == LeaveStatus.PENDING)
 
     if actor.role == EmployeeRole.MANAGER:
-        # subquery: employees whose manager_id = actor.id
         from app.models.employee import Employee as Emp
-        report_ids = [e.id for e in db.query(Emp).filter(Emp.manager_id == actor.id).all()]
+        report_ids = [row[0] for row in db.query(Emp.id).filter(Emp.manager_id == actor.id).all()]
         if not report_ids:
             return {"success": True, "data": []}
         query = query.filter(LeaveRequest.employee_id.in_(report_ids))
