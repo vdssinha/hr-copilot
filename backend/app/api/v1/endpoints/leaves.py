@@ -11,8 +11,10 @@ from sqlalchemy.orm import Session
 from app.core.dependencies import get_current_user, require_role
 from app.db.session import get_db
 from app.models.employee import Employee, EmployeeRole
+from app.models.ai_audit_log import AIIntent, ActionStatus
 from app.schemas.common import APIResponse
 from app.services import leave_service
+from app.services.ai.audit import log_ai_interaction
 
 router = APIRouter()
 
@@ -58,7 +60,11 @@ def create_leave_request(
         half_day_period=body.half_day_period,
     )
     if not result["success"]:
+        log_ai_interaction(db, current_user, f"Apply {body.leave_type} leave {body.start_date}→{body.end_date}",
+                           AIIntent.HR_ACTION, ActionStatus.ERROR, tool_name="apply_leave")
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=result["error"])
+    log_ai_interaction(db, current_user, f"Apply {body.leave_type} leave {body.start_date}→{body.end_date}",
+                       AIIntent.HR_ACTION, ActionStatus.SUCCESS, tool_name="apply_leave")
     return APIResponse.ok(result["data"])
 
 
@@ -79,8 +85,14 @@ def update_leave_request(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="action must be 'approve' or 'reject'",
         )
+    tool = f"{action}_leave"
     if not result["success"]:
+        log_ai_interaction(db, current_user, f"{action.title()} leave request #{request_id}",
+                           AIIntent.HR_ACTION, ActionStatus.ERROR, tool_name=tool)
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=result["error"])
+    log_ai_interaction(db, current_user, f"{action.title()} leave request #{request_id}",
+                       AIIntent.HR_ACTION, ActionStatus.SUCCESS, tool_name=tool,
+                       records_accessed=[str(request_id)])
     return APIResponse.ok(result["data"])
 
 
