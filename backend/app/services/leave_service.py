@@ -106,6 +106,13 @@ def check_leave_balance(
     }
 
 
+_BALANCE_FIELD = {
+    LeaveType.CASUAL: "casual_leave_used",
+    LeaveType.SICK:   "sick_leave_used",
+    LeaveType.ANNUAL: "annual_leave_used",
+}
+
+
 def _change_leave_status(
     db: Session, actor: Employee, request_id: int, new_status: LeaveStatus
 ) -> dict:
@@ -121,6 +128,17 @@ def _change_leave_status(
     req.status = new_status
     req.approved_by_id = actor.id
     req.approved_at = datetime.utcnow()
+
+    if new_status == LeaveStatus.APPROVED and req.leave_type in _BALANCE_FIELD:
+        days = 0.5 if req.is_half_day else (req.end_date - req.start_date).days + 1
+        balance = db.query(LeaveBalance).filter(
+            LeaveBalance.employee_id == req.employee_id,
+            LeaveBalance.year == req.start_date.year,
+        ).first()
+        if balance:
+            field = _BALANCE_FIELD[req.leave_type]
+            setattr(balance, field, getattr(balance, field) + days)
+
     db.commit()
     return {"success": True, "data": {"id": req.id, "status": new_status.value}}
 

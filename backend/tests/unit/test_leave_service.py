@@ -182,6 +182,71 @@ def test_approve_already_approved(db):
     assert "already" in result["error"]
 
 
+# ─── balance deduction on approve ────────────────────────────────────────────
+
+def test_approve_leave_deducts_balance(db):
+    manager = _make_employee(db, role=EmployeeRole.MANAGER)
+    emp = _make_employee(db)
+    _make_balance(db, emp)
+    req = LeaveRequest(
+        employee_id=emp.id, leave_type=LeaveType.CASUAL,
+        start_date=date(2026, 8, 1), end_date=date(2026, 8, 3),
+        status=LeaveStatus.PENDING,
+    )
+    db.add(req); db.flush()
+    approve_leave(db, manager, req.id)
+    bal = db.query(LeaveBalance).filter(LeaveBalance.employee_id == emp.id, LeaveBalance.year == 2026).first()
+    assert bal.casual_leave_used == 3.0  # Aug 1–3 = 3 days
+
+
+def test_approve_half_day_deducts_half(db):
+    manager = _make_employee(db, role=EmployeeRole.MANAGER)
+    emp = _make_employee(db)
+    _make_balance(db, emp)
+    req = LeaveRequest(
+        employee_id=emp.id, leave_type=LeaveType.SICK,
+        start_date=date(2026, 9, 1), end_date=date(2026, 9, 1),
+        is_half_day=True, status=LeaveStatus.PENDING,
+    )
+    db.add(req); db.flush()
+    approve_leave(db, manager, req.id)
+    bal = db.query(LeaveBalance).filter(LeaveBalance.employee_id == emp.id, LeaveBalance.year == 2026).first()
+    assert bal.sick_leave_used == 0.5
+
+
+def test_reject_leave_does_not_touch_balance(db):
+    manager = _make_employee(db, role=EmployeeRole.MANAGER)
+    emp = _make_employee(db)
+    _make_balance(db, emp)
+    req = LeaveRequest(
+        employee_id=emp.id, leave_type=LeaveType.ANNUAL,
+        start_date=date(2026, 10, 1), end_date=date(2026, 10, 2),
+        status=LeaveStatus.PENDING,
+    )
+    db.add(req); db.flush()
+    reject_leave(db, manager, req.id)
+    bal = db.query(LeaveBalance).filter(LeaveBalance.employee_id == emp.id, LeaveBalance.year == 2026).first()
+    assert bal.annual_leave_used == 0.0
+
+
+def test_approve_unpaid_leave_no_balance_change(db):
+    manager = _make_employee(db, role=EmployeeRole.MANAGER)
+    emp = _make_employee(db)
+    _make_balance(db, emp)
+    req = LeaveRequest(
+        employee_id=emp.id, leave_type=LeaveType.UNPAID,
+        start_date=date(2026, 11, 1), end_date=date(2026, 11, 1),
+        status=LeaveStatus.PENDING,
+    )
+    db.add(req); db.flush()
+    result = approve_leave(db, manager, req.id)
+    assert result["success"] is True
+    bal = db.query(LeaveBalance).filter(LeaveBalance.employee_id == emp.id, LeaveBalance.year == 2026).first()
+    assert bal.casual_leave_used == 0.0
+    assert bal.sick_leave_used == 0.0
+    assert bal.annual_leave_used == 0.0
+
+
 # ─── list_pending_approvals ───────────────────────────────────────────────────
 
 def test_list_pending_approvals_manager_sees_reports(db):
