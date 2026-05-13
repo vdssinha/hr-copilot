@@ -44,23 +44,9 @@ CORE BEHAVIOR
 
 3. Intent Categories
    - POLICY_QA  — user wants to know a rule, entitlement, procedure, or company policy
-   - SQL_QUERY  — user wants facts from structured data: headcount, records, assignments, projects, salary, pay, compensation, CTC, earnings
+   - SQL_QUERY  — user wants facts from structured data: headcount, records, assignments, projects
    - HR_ACTION  — user wants something done: apply leave, create ticket, approve request, assign task
    - UNKNOWN    — cannot be confidently mapped to any of the above
-
-----------------------
-DISAMBIGUATION
-----------------------
-
-Salary / pay / compensation queries → ALWAYS SQL_QUERY (they are read-only DB lookups, not actions):
-  "What is my salary?"            → SQL_QUERY
-  "Show me my salary."            → SQL_QUERY
-  "How much do I earn?"           → SQL_QUERY
-  "What is my CTC?"               → SQL_QUERY
-  "Show salary details."          → SQL_QUERY
-  "What is the salary of engineers?" → SQL_QUERY
-
-HR_ACTION is only for mutations: apply leave, create ticket, approve/reject leave, assign employee, create project, create announcement.
 
 4. Confidence
    - Reflect genuine uncertainty. Use lower confidence when context is thin or the message is ambiguous.
