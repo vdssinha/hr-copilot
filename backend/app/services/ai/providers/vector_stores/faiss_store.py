@@ -18,6 +18,7 @@ class FAISSVectorStore(BaseVectorStore):
         self._collection_name = collection_name
         self._index = None
         self._documents: List[Document] = []
+        self._embeddings: List[List[float]] = []
 
     def add_documents(self, documents: List[Document], embeddings: List[List[float]]) -> None:
         vecs = self._np.array(embeddings, dtype="float32")
@@ -26,6 +27,7 @@ class FAISSVectorStore(BaseVectorStore):
         self._faiss.normalize_L2(vecs)
         self._index.add(vecs)
         self._documents.extend(documents)
+        self._embeddings.extend(embeddings)
 
     def similarity_search(
         self,
@@ -49,12 +51,16 @@ class FAISSVectorStore(BaseVectorStore):
         return results[:k]
 
     def delete_where(self, where: Dict) -> None:
-        """Remove documents matching the metadata filter (in-memory rebuild)."""
-        keep = [doc for doc in self._documents if not _matches_where(doc.metadata, where)]
+        """Remove documents matching the metadata filter and rebuild the index."""
+        pairs = [
+            (doc, emb)
+            for doc, emb in zip(self._documents, self._embeddings)
+            if not _matches_where(doc.metadata, where)
+        ]
         self.clear()
-        if keep:
-            # Embeddings are not stored — caller must re-ingest after deletion
-            self._documents = keep
+        if pairs:
+            docs, embs = zip(*pairs)
+            self.add_documents(list(docs), list(embs))
 
     def count(self) -> int:
         return self._index.ntotal if self._index else 0
@@ -62,6 +68,7 @@ class FAISSVectorStore(BaseVectorStore):
     def clear(self) -> None:
         self._index = None
         self._documents = []
+        self._embeddings = []
 
 
 def _matches_where(metadata: dict, where: Dict) -> bool:
