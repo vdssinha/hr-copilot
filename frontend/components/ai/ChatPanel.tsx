@@ -14,7 +14,7 @@ import {
 
 export type Mode = "router" | "policy" | "sql" | "actions" | "langgraph" | "hr-data";
 
-interface Message {
+export interface Message {
   role: "user" | "assistant";
   text: string;
   statusLog?: string[];
@@ -32,6 +32,8 @@ interface Message {
 interface ChatPanelProps {
   token: string;
   mode: Mode;
+  messages: Message[];
+  onMessages: React.Dispatch<React.SetStateAction<Message[]>>;
 }
 
 const SUGGESTIONS: Record<Mode, string[]> = {
@@ -58,8 +60,7 @@ function extractFromRouterResult(data: Record<string, unknown>): Omit<Message, "
   return { text: (result?.answer as string) ?? JSON.stringify(result) };
 }
 
-export function ChatPanel({ token, mode }: ChatPanelProps) {
-  const [messages, setMessages] = useState<Message[]>([]);
+export function ChatPanel({ token, mode, messages, onMessages: setMessages }: ChatPanelProps) {
   const [input, setInput]       = useState("");
   const [loading, setLoading]   = useState(false);
   const [statusText, setStatusText] = useState("");

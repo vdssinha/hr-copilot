@@ -7,7 +7,7 @@ import {
   LogOut, ChevronRight, ChevronDown, Settings, Calendar, ClipboardCheck,
   Megaphone, Ticket, FolderKanban, Briefcase, LayoutDashboard, Building2,
 } from "lucide-react";
-import { ChatPanel } from "@/components/ai/ChatPanel";
+import { ChatPanel, Message as ChatMessage } from "@/components/ai/ChatPanel";
 import { PendingApprovals } from "@/components/ai/PendingApprovals";
 import { MyLeaves } from "@/components/ai/MyLeaves";
 import { Announcements } from "@/components/ai/Announcements";
@@ -73,6 +73,7 @@ export default function AICopilotPage() {
   const [userRole, setUserRole] = useState("");
   const [ready, setReady]       = useState(false);
   const [hoveredGroup, setHoveredGroup] = useState<string | null>(null);
+  const [chatHistories, setChatHistories] = useState<Record<string, ChatMessage[]>>({});
 
   useEffect(() => {
     const t = getToken();
@@ -231,7 +232,18 @@ export default function AICopilotPage() {
 
         {/* Route to correct panel */}
         {CHAT_MODES.has(mode) && (
-          <ChatPanel key={mode} token={token!} mode={mode as Parameters<typeof ChatPanel>[0]["mode"]} />
+          <ChatPanel
+            key={mode}
+            token={token!}
+            mode={mode as Parameters<typeof ChatPanel>[0]["mode"]}
+            messages={chatHistories[mode] ?? []}
+            onMessages={(action) =>
+              setChatHistories((prev) => ({
+                ...prev,
+                [mode]: typeof action === "function" ? action(prev[mode] ?? []) : action,
+              }))
+            }
+          />
         )}
         {mode === "my-leaves" && <MyLeaves token={token!} />}
         {mode === "announcements" && <Announcements token={token!} />}
