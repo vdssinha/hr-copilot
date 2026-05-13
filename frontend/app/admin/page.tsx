@@ -965,7 +965,7 @@ export default function AdminPage() {
                       { label: "Successful", value: s.success_count, color: "text-green-600", title: "Requests that returned results" },
                       { label: "Permission Failures", value: s.permission_failures, color: "text-red-600", title: "HR actions or guardrail blocks denied by RBAC" },
                       { label: "Errors", value: s.error_count, color: "text-rose-500", title: "Requests that threw exceptions" },
-                      { label: "Avg Latency", value: s.avg_latency_ms != null ? `${Math.round(s.avg_latency_ms)}ms` : "—", color: "text-amber-600", title: "Average response time (only logged requests)" },
+                      { label: "Avg Latency", value: s.avg_latency_ms != null ? `${(s.avg_latency_ms / 1000).toFixed(2)}s` : "—", color: "text-amber-600", title: "Average response time (only logged requests)" },
                       { label: "RAG No-Answer %", value: `${s.rag_no_answer_rate_pct}%`, color: "text-orange-600", title: "Policy/HR-data RAG calls with no relevant content found" },
                       { label: "SQL Blocked", value: s.sql_blocked_count, color: "text-violet-600", title: "SQL queries rejected by security guardrail" },
                     ].map(({ label, value, color, title }) => (
