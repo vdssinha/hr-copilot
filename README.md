@@ -7,7 +7,7 @@ DS Bootcamp assignment — full-stack AI feature integration.
 
 ## Demo
 
-[![Watch Demo](https://img.shields.io/badge/▶%20Watch%20Demo%20Video-Google%20Drive-blue?style=for-the-badge&logo=google-drive)](https://drive.google.com/file/d/1TZ2wDdpcVcJFAXxjaJZuu7jHenEfoQ7l/view?usp=drive_link)
+[![Watch Demo](https://img.shields.io/badge/▶%20Watch%20Demo%20Video-Google%20Drive-blue?style=for-the-badge&logo=google-drive)](https://drive.google.com/file/d/1TZ2wDdpcVcJFAXxjaJZuu7jHenEfoQ7l/view?usp=sharing)
 
 ---
 
